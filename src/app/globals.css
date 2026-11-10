@@ -1,0 +1,9 @@
+@import "./styles/shell.css";
+@import "./styles/discovery.css";
+@import "./styles/catalog.css";
+@import "./styles/overlays.css";
+@import "./styles/responsive.css";
+
+p {
+  font-family: "Roboto Slab Variable", "Roboto Slab", Georgia, serif;
+}
