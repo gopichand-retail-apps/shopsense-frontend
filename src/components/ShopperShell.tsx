@@ -81,7 +81,9 @@ export function ShopperShell({
             <span className={serviceConnected ? "service-dot is-online" : "service-dot"} aria-hidden="true" />
             <span>{copy(model, serviceLabel)}</span>
           </div>
-          <p className="sidebar-footnote">{copy(model, "releaseVersion")} {APP_VERSION}</p>
+          <p className="sidebar-footnote">
+            {copy(model, "releaseVersion")} {APP_VERSION}
+          </p>
           <p className="sidebar-footnote">{copy(model, "catalogGrounding")}</p>
         </div>
       </aside>
