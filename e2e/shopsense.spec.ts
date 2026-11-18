@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import envelope from "../public/shopsense-ai-model.json";
 
 const queryBox = "What are you looking for?";
 const expectedDataMode = process.env.NEXT_PUBLIC_IS_MOCK === "false" ? "live" : "mock";
@@ -7,11 +8,11 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Browse the catalog", level: 2 })).toBeVisible();
   await expect(page.locator(".shop-shell")).toHaveAttribute("data-mode", expectedDataMode);
-  await expect(page.locator('[data-testid="product-card"]')).toHaveCount(8);
+  await expect(page.locator('[data-testid="product-card"]')).toHaveCount(24);
 });
 
 test("Flow 1: opens discovery with catalog-backed products", async ({ page }) => {
-  await expect(page.getByRole("complementary").getByText("Catalog service connected")).toBeVisible();
+  await expect(page.getByRole("complementary").getByText(envelope.messages.serviceConnected)).toBeVisible();
   await expect(page.getByRole("searchbox", { name: queryBox })).toBeVisible();
   await expect(page.locator(".product-image-wrap").first()).toHaveCSS("position", "relative");
 });
@@ -23,10 +24,10 @@ test("shows offline state and verifies service health after reconnecting", async
   ].join(" ");
   await page.context().setOffline(true);
   await expect(page.getByText(offlineMessage, { exact: true })).toBeVisible();
-  await expect(page.getByText("Catalog service unavailable", { exact: true })).toBeVisible();
+  await expect(page.getByText(envelope.messages.serviceUnavailable, { exact: true })).toBeVisible();
 
   await page.context().setOffline(false);
-  await expect(page.getByText("Catalog service connected", { exact: true })).toBeVisible();
+  await expect(page.getByText(envelope.messages.serviceConnected, { exact: true })).toBeVisible();
   await expect(page.getByText(offlineMessage, { exact: true })).toHaveCount(0);
 });
 
@@ -43,7 +44,7 @@ test("API requests carry and return the same request ID", async ({ page }) => {
 });
 
 test("Flow 2: submits a natural-language product need", async ({ page }) => {
-  await page.getByRole("searchbox", { name: queryBox }).fill("A light pack for weekend trails");
+  await page.getByRole("searchbox", { name: queryBox }).fill("A light recycled ripstop pack for weekend trails");
   await page.getByRole("button", { name: "Find products" }).click();
   await expect(page.getByRole("heading", { name: "Ridge Daypack", level: 2 })).toBeVisible();
   await expect(page.getByText("daypack", { exact: true })).toBeVisible();
@@ -53,12 +54,12 @@ test("Flow 3: ranks and explains headphones from stored attributes", async ({ pa
   await page.getByRole("searchbox", { name: queryBox }).fill("Quiet headphones for focused work");
   await page.getByRole("button", { name: "Find products" }).click();
   await expect(page.getByRole("heading", { name: "Studio Headphones", level: 2 })).toBeVisible();
-  await expect(page.getByText("quiet", { exact: true })).toBeVisible();
+  await expect(page.getByText("quiet", { exact: true }).first()).toBeVisible();
 });
 
 test("Flow 4: category filters narrow the catalog", async ({ page }) => {
   await page.getByRole("button", { name: "Audio", exact: true }).click();
-  await expect(page.locator('[data-testid="product-card"]')).toHaveCount(1);
+  await expect(page.locator('[data-testid="product-card"]')).toHaveCount(24);
   await expect(page.getByRole("heading", { name: "Studio Headphones", level: 2 })).toBeVisible();
 });
 

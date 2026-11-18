@@ -7,10 +7,13 @@ import { userFacingErrorCopy } from "@/lib/user-facing-error-copy";
 
 interface CatalogRetryActions {
   model: PublicModel | null;
+  category?: string;
   setCatalog: Dispatch<SetStateAction<CatalogProduct[]>>;
   setCatalogError: Dispatch<SetStateAction<string | null>>;
   setCatalogLoading: Dispatch<SetStateAction<boolean>>;
   setServiceConnected: Dispatch<SetStateAction<boolean>>;
+  setAiAvailable: Dispatch<SetStateAction<boolean>>;
+  setCatalogTotal: Dispatch<SetStateAction<number>>;
 }
 
 export function useShopperCatalogRetry(actions: CatalogRetryActions) {
@@ -19,9 +22,12 @@ export function useShopperCatalogRetry(actions: CatalogRetryActions) {
     actions.setCatalogLoading(true);
     actions.setCatalogError(null);
     try {
-      const [health, products] = await Promise.all([getHealth(actions.model), getCatalog(actions.model)]);
+      const category = actions.category === "all" ? undefined : actions.category;
+      const [health, products] = await Promise.all([getHealth(actions.model), getCatalog(actions.model, category)]);
       actions.setServiceConnected(health.status === "ok");
+      actions.setAiAvailable(health.ai?.available === true);
       actions.setCatalog(products);
+      actions.setCatalogTotal(health.catalogCount ?? products.length);
     } catch (error) {
       actions.setServiceConnected(false);
       actions.setCatalogError(userFacingErrorCopy(actions.model, error, "loadError"));

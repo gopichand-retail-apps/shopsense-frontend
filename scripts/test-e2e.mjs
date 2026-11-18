@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
 
-const isWindows = process.platform === "win32";
 const apiOrigin = "http://127.0.0.1:5882";
 const unavailableApiOrigin = "http://127.0.0.1:1";
 const isMock = process.env.NEXT_PUBLIC_IS_MOCK ?? "true";
@@ -21,7 +20,6 @@ function run(command, args) {
     cwd: process.cwd(),
     env: environment,
     stdio: "inherit",
-    shell: isWindows,
   });
   if (result.error) {
     process.stderr.write(`${result.error.message}\n`);
@@ -30,7 +28,6 @@ function run(command, args) {
   return result.status ?? 1;
 }
 
-const packageManager = isWindows ? "npm.cmd" : "npm";
-const packageRunner = isWindows ? "npx.cmd" : "npx";
-const buildStatus = run(packageManager, ["run", "build"]);
-process.exitCode = buildStatus === 0 ? run(packageRunner, ["playwright", "test"]) : buildStatus;
+const buildStatus = run(process.execPath, ["node_modules/next/dist/bin/next", "build"]);
+process.exitCode =
+  buildStatus === 0 ? run(process.execPath, ["node_modules/@playwright/test/cli.js", "test"]) : buildStatus;

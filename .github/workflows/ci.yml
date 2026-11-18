@@ -7,22 +7,54 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: shopsense-frontend
+    env:
+      NEXT_PUBLIC_IS_MOCK: "true"
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: shopsense-frontend
+      - uses: actions/checkout@v4
+        with:
+          repository: gopichand-retail-apps/shopsense-backend
+          ref: 93469e1ae592b41bfeb74f10fe71206362e8fe45
+          path: shopsense-backend
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24.15.0"
           cache: npm
+          cache-dependency-path: shopsense-frontend/package-lock.json
       - run: npm ci
+      - run: npm ci
+        working-directory: shopsense-backend
       - run: npx playwright install --with-deps chromium
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:cov
-      - run: npm audit
       - run: npm run test:e2e
         env:
           NEXT_PUBLIC_IS_MOCK: "true"
       - run: npm run test:e2e
         env:
           NEXT_PUBLIC_IS_MOCK: "false"
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.15.0"
+          cache: npm
+      - run: npm ci
+      - run: npm audit

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { apiErrorCopyForCode } from "./api-errors";
 import { productSchema, publicModelSchema } from "./model";
-import type { CatalogProduct, PublicModel, SearchResult } from "./model";
+import type { CatalogProduct, ProductFilters, PublicModel, SearchResult } from "./model";
 
 const catalogSchema = z.array(productSchema);
 const searchResultSchema = z.object({
@@ -15,8 +15,42 @@ const searchResultSchema = z.object({
   ),
   summary: z.string(),
   source: z.string(),
+  totalMatches: z.number().int().nonnegative().optional(),
+  assistance: z
+    .object({
+      status: z.enum(["catalog", "assisted", "unavailable"]),
+      provider: z.enum(["local", "gemini", "ollama"]),
+      reason: z
+        .enum([
+          "not_configured",
+          "busy",
+          "budget",
+          "timeout",
+          "quota",
+          "provider_error",
+          "invalid_response",
+          "catalog_limit",
+        ])
+        .optional(),
+    })
+    .optional(),
 });
 const feedbackSchema = z.object({ accepted: z.boolean() });
+const storeLayoutSchema = z.object({
+  id: z.string(),
+  version: z.number().int().positive(),
+  name: z.string(),
+  aisles: z.array(
+    z.object({
+      id: z.string(),
+      label: z.string(),
+      category: z.string(),
+      audience: z.string().optional(),
+      racks: z.array(z.string()),
+    }),
+  ),
+});
+export type StoreLayout = z.infer<typeof storeLayoutSchema>;
 const apiErrorSchema = z.object({
   error: z.object({ code: z.string() }).passthrough(),
 });
@@ -52,6 +86,8 @@ export function getHealth(model: PublicModel, signal?: AbortSignal) {
       status: z.string(),
       service: z.string(),
       storage: z.string(),
+      catalogCount: z.number().int().nonnegative().optional(),
+      ai: z.object({ available: z.boolean(), provider: z.enum(["local", "gemini", "ollama"]) }).optional(),
     }),
     { signal },
   );
@@ -92,16 +128,40 @@ async function requestData<T>(
   return parsed.data;
 }
 
-export function getCatalog(model: PublicModel, category?: string, signal?: AbortSignal) {
-  const parameters = category ? `?category=${encodeURIComponent(category)}` : "";
+export function getCatalog(
+  model: PublicModel,
+  category?: string,
+  signal?: AbortSignal,
+  page: { offset?: number; limit?: number; ids?: string[] } = {},
+) {
+  const fields: string[] = [];
+  if (category) fields.push(`category=${encodeURIComponent(category)}`);
+  if (page.offset !== undefined) fields.push(`offset=${page.offset}`);
+  if (page.limit !== undefined) fields.push(`limit=${page.limit}`);
+  if (page.ids?.length) fields.push(`ids=${encodeURIComponent(page.ids.join(","))}`);
+  const parameters = fields.length ? `?${fields.join("&")}` : "";
   return requestData(model, `/catalog${parameters}`, catalogSchema, { signal });
 }
 
-export function searchCatalog(model: PublicModel, query: string, signal?: AbortSignal) {
+export async function getProductsByIds(model: PublicModel, ids: string[], signal?: AbortSignal) {
+  const products: CatalogProduct[] = [];
+  for (let offset = 0; offset < ids.length; offset += 50) {
+    products.push(...(await getCatalog(model, undefined, signal, { ids: ids.slice(offset, offset + 50), limit: 50 })));
+  }
+  return products;
+}
+
+export function searchCatalog(
+  model: PublicModel,
+  query: string,
+  signal?: AbortSignal,
+  options: { useAi?: boolean; filters?: ProductFilters } | boolean = {},
+) {
+  const { useAi = true, filters } = typeof options === "boolean" ? { useAi: options } : options;
   return requestData(model, "/search", searchResultSchema, {
     signal,
     method: "POST",
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, ...(useAi ? { useAi: true } : {}), ...(filters ? { filters } : {}) }),
   });
 }
 
@@ -110,6 +170,10 @@ export function sendFeedback(model: PublicModel, feedback: { productId: string; 
     method: "POST",
     body: JSON.stringify(feedback),
   });
+}
+
+export function getStoreLayout(model: PublicModel, signal?: AbortSignal) {
+  return requestData(model, "/store-layout", storeLayoutSchema, { signal });
 }
 
 export type { CatalogProduct, SearchResult };
