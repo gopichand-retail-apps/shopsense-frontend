@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from "react";
-import { getCatalog, getHealth, loadModel } from "@/lib/api";
+import { useEffect, useMemo, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from "react";
+import { getCatalog, getHealth, getProductsByIds, loadModel } from "@/lib/api";
 import type { CatalogProduct, PublicModel, ThemeMode } from "@/lib/model";
 import { userFacingErrorCopy } from "@/lib/user-facing-error-copy";
 
@@ -9,12 +9,18 @@ export interface ShopperBootstrap {
   model: PublicModel | null;
   loadError: boolean;
   catalog: CatalogProduct[];
+  catalogTotal: number;
+  setCatalogTotal: Dispatch<SetStateAction<number>>;
+  referencedProducts: CatalogProduct[];
+  setReferencedProducts: Dispatch<SetStateAction<CatalogProduct[]>>;
   setCatalog: Dispatch<SetStateAction<CatalogProduct[]>>;
   catalogError: string | null;
   setCatalogError: Dispatch<SetStateAction<string | null>>;
   catalogLoading: boolean;
   setCatalogLoading: Dispatch<SetStateAction<boolean>>;
   serviceConnected: boolean;
+  aiAvailable: boolean;
+  setAiAvailable: Dispatch<SetStateAction<boolean>>;
   setServiceConnected: Dispatch<SetStateAction<boolean>>;
   offline: boolean;
   theme: ThemeMode;
@@ -26,10 +32,9 @@ export interface ShopperBootstrap {
 export function useShopperBootstrap(): ShopperBootstrap {
   const [model, setModel] = useState<PublicModel | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
-  const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [catalogLoading, setCatalogLoading] = useState(false);
+  const { setters: catalogSetters, ...catalogState } = useCatalogState();
   const [serviceConnected, setServiceConnected] = useState(false);
+  const [aiAvailable, setAiAvailable] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [savedIds, setSavedIds] = useState<string[]>([]);
 
@@ -40,11 +45,11 @@ export function useShopperBootstrap(): ShopperBootstrap {
         setLoadError,
         setTheme,
         setSavedIds,
-        setCatalog,
-        setCatalogError,
+        ...catalogSetters,
         setServiceConnected,
+        setAiAvailable,
       }),
-    [],
+    [catalogSetters],
   );
 
   useEffect(() => {
@@ -57,13 +62,10 @@ export function useShopperBootstrap(): ShopperBootstrap {
   return {
     model,
     loadError,
-    catalog,
-    setCatalog,
-    catalogError,
-    setCatalogError,
-    catalogLoading,
-    setCatalogLoading,
+    ...catalogState,
     serviceConnected,
+    aiAvailable,
+    setAiAvailable,
     setServiceConnected,
     offline,
     theme,
@@ -73,7 +75,29 @@ export function useShopperBootstrap(): ShopperBootstrap {
   };
 }
 
+function useCatalogState() {
+  const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
+  const [catalogTotal, setCatalogTotal] = useState(0);
+  const [referencedProducts, setReferencedProducts] = useState<CatalogProduct[]>([]);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const setters = useMemo(() => ({ setCatalog, setCatalogTotal, setReferencedProducts, setCatalogError }), []);
+  return {
+    catalog,
+    catalogTotal,
+    referencedProducts,
+    catalogError,
+    catalogLoading,
+    setCatalogLoading,
+    ...setters,
+    setters,
+  };
+}
+
 function beginInitialLoad(setters: {
+  setCatalogTotal: Dispatch<SetStateAction<number>>;
+  setReferencedProducts: Dispatch<SetStateAction<CatalogProduct[]>>;
+  setAiAvailable: Dispatch<SetStateAction<boolean>>;
   setModel: Dispatch<SetStateAction<PublicModel | null>>;
   setLoadError: Dispatch<SetStateAction<boolean>>;
   setTheme: Dispatch<SetStateAction<ThemeMode>>;
@@ -92,6 +116,9 @@ function beginInitialLoad(setters: {
 }
 
 async function initializeShopper(context: {
+  setCatalogTotal: Dispatch<SetStateAction<number>>;
+  setReferencedProducts: Dispatch<SetStateAction<CatalogProduct[]>>;
+  setAiAvailable: Dispatch<SetStateAction<boolean>>;
   signal: AbortSignal;
   isMounted: () => boolean;
   setModel: Dispatch<SetStateAction<PublicModel | null>>;
@@ -110,6 +137,8 @@ async function initializeShopper(context: {
     context.setSavedIds(readSavedIds(model.app.savedStorageKey));
     updateDocumentMetadata(model);
     await loadInitialCatalog(model, context);
+    const saved = await getProductsByIds(model, readSavedIds(model.app.savedStorageKey), context.signal);
+    if (context.isMounted()) context.setReferencedProducts(saved);
   } catch {
     if (context.isMounted()) context.setLoadError(true);
   }
@@ -117,7 +146,10 @@ async function initializeShopper(context: {
 
 async function loadInitialCatalog(
   model: PublicModel,
-  context: Pick<ShopperBootstrap, "setCatalog" | "setCatalogError" | "setServiceConnected"> & {
+  context: Pick<
+    ShopperBootstrap,
+    "setCatalog" | "setCatalogError" | "setServiceConnected" | "setAiAvailable" | "setCatalogTotal"
+  > & {
     signal: AbortSignal;
     isMounted: () => boolean;
   },
@@ -129,7 +161,9 @@ async function loadInitialCatalog(
     ]);
     if (!context.isMounted()) return;
     context.setServiceConnected(health.status === "ok");
+    context.setAiAvailable(health.ai?.available === true);
     context.setCatalog(products);
+    context.setCatalogTotal(health.catalogCount ?? products.length);
   } catch (error) {
     if (!context.isMounted()) return;
     context.setServiceConnected(false);

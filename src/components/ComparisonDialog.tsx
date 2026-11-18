@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowLeftRight, X } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { copy, formatPrice, nestedCopy } from "@/lib/model";
 import type { CatalogProduct, PublicModel } from "@/lib/model";
 
@@ -11,6 +12,17 @@ interface ComparisonDialogProps {
 }
 
 export function ComparisonDialog({ model, products, onClose }: ComparisonDialogProps) {
+  const closeButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const trigger = document.activeElement;
+    closeButton.current?.focus();
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = overflow;
+      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+    };
+  }, []);
   return (
     <div
       className="dialog-backdrop"
@@ -25,6 +37,10 @@ export function ComparisonDialog({ model, products, onClose }: ComparisonDialogP
         aria-labelledby="compare-heading"
         onKeyDown={(event) => {
           if (event.key === "Escape") onClose();
+          if (event.key === "Tab") {
+            event.preventDefault();
+            closeButton.current?.focus();
+          }
         }}
       >
         <div className="dialog-heading">
@@ -35,7 +51,13 @@ export function ComparisonDialog({ model, products, onClose }: ComparisonDialogP
             </span>
             <h2 id="compare-heading">{copy(model, "compareTitle")}</h2>
           </div>
-          <button type="button" className="icon-button" aria-label={copy(model, "compareClose")} onClick={onClose}>
+          <button
+            ref={closeButton}
+            type="button"
+            className="icon-button"
+            aria-label={copy(model, "compareClose")}
+            onClick={onClose}
+          >
             <X size={18} aria-hidden="true" />
           </button>
         </div>

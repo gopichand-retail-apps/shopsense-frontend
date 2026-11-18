@@ -48,7 +48,7 @@ describe("ShopSense API client", () => {
 
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
       method: "POST",
-      body: JSON.stringify({ query: "a light daypack" }),
+      body: JSON.stringify({ query: "a light daypack", useAi: true }),
     });
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
       method: "POST",

@@ -8,10 +8,33 @@ export const productSchema = z
     category: z.string(),
     priceCents: z.number().int().nonnegative(),
     description: z.string(),
-    imageUrl: z.string().url(),
+    imageUrl: z.union([z.string().url(), z.string().regex(/^\/catalog\/(?:photos\/)?[a-z0-9-]+\.(?:svg|jpg)$/)]),
     imageAlt: z.string(),
+    imageCredit: z
+      .object({
+        kind: z.literal("style-reference"),
+        author: z.string().min(1).max(240),
+        source: z.string().regex(/^https:\/\/www\.pexels\.com\/photo\/[a-z0-9-]+\/$/),
+        licenseUrl: z.literal("https://www.pexels.com/license/"),
+      })
+      .strict()
+      .optional(),
     attributes: z.array(z.string()),
     matchTags: z.array(z.string()).optional(),
+    color: z.string().optional(),
+    audience: z.enum(["women", "men", "kids", "unisex"]).optional(),
+    productType: z.string().optional(),
+    location: z
+      .object({
+        storeId: z.string(),
+        layoutVersion: z.number().int().positive(),
+        virtual: z.literal(true),
+        aisle: z.string(),
+        rack: z.string(),
+        shelf: z.number().int().positive(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -112,12 +135,23 @@ export type Recommendation = {
   product: CatalogProduct;
   matchedDetails: string[];
 };
+export type ProductFilters = {
+  audience?: "women" | "men" | "kids" | "unisex";
+  color?: "black" | "white" | "navy" | "red" | "green" | "blue";
+  maximumPriceCents?: number;
+};
 export type SearchResult = {
   intentCategory: string | null;
   resultCount: number;
   results: Recommendation[];
   summary: string;
   source: string;
+  totalMatches?: number;
+  assistance?: {
+    status: "catalog" | "assisted" | "unavailable";
+    provider: "local" | "gemini" | "ollama";
+    reason?: string;
+  };
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

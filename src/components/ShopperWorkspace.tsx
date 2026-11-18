@@ -16,10 +16,16 @@ import type { Dispatch, SetStateAction } from "react";
 interface ShopperWorkspaceProps {
   model: PublicModel;
   catalog: CatalogProduct[];
+  catalogTotal: number;
+  referencedProducts: CatalogProduct[];
+  setReferencedProducts: Dispatch<SetStateAction<CatalogProduct[]>>;
+  hasMoreProducts: boolean;
+  onLoadMore: () => void;
   catalogError: string | null;
   catalogLoading: boolean;
   offline: boolean;
   serviceConnected: boolean;
+  aiAvailable: boolean;
   theme: ThemeMode;
   setTheme: Dispatch<SetStateAction<ThemeMode>>;
   savedIds: string[];
@@ -27,7 +33,7 @@ interface ShopperWorkspaceProps {
   activeView: WorkspaceView;
   setActiveView: Dispatch<SetStateAction<WorkspaceView>>;
   activeCategory: string;
-  setActiveCategory: Dispatch<SetStateAction<string>>;
+  setActiveCategory: (value: string) => void;
   navigationOpen: boolean;
   setNavigationOpen: Dispatch<SetStateAction<boolean>>;
   notice: string | null;
@@ -39,7 +45,16 @@ interface ShopperWorkspaceProps {
 }
 
 export function ShopperWorkspace(props: ShopperWorkspaceProps) {
-  const savedProducts = props.catalog.filter((product) => props.savedIds.includes(product.id));
+  const knownProducts = [
+    ...new Map(
+      [
+        ...props.referencedProducts,
+        ...props.catalog,
+        ...(props.search.searchResult?.results.map((item) => item.product) ?? []),
+      ].map((product) => [product.id, product]),
+    ).values(),
+  ];
+  const savedProducts = knownProducts.filter((product) => props.savedIds.includes(product.id));
   const recommendations =
     props.activeView === "saved"
       ? savedProducts.map(toRecommendation)
@@ -48,13 +63,20 @@ export function ShopperWorkspace(props: ShopperWorkspaceProps) {
     (item) => props.activeCategory === "all" || item.product.category === props.activeCategory,
   );
   const comparedProducts = props.comparison.compareIds
-    .map((id) => props.catalog.find((product) => product.id === id))
+    .map((id) => knownProducts.find((product) => product.id === id))
     .filter((product): product is CatalogProduct => product !== undefined);
 
   function toggleSaved(productId: string) {
+    rememberProduct(productId);
     const wasSaved = props.savedIds.includes(productId);
     props.setSavedIds((current) => (wasSaved ? current.filter((id) => id !== productId) : [...current, productId]));
     props.setNotice(copy(props.model, wasSaved ? "removeComplete" : "saveComplete"));
+  }
+
+  function rememberProduct(productId: string) {
+    const product = knownProducts.find((item) => item.id === productId);
+    if (product)
+      props.setReferencedProducts((current) => [...current.filter((item) => item.id !== productId), product]);
   }
 
   return (
@@ -65,6 +87,7 @@ export function ShopperWorkspace(props: ShopperWorkspaceProps) {
         navigationOpen={props.navigationOpen}
         theme={props.theme}
         serviceConnected={props.serviceConnected}
+        modalOpen={props.comparison.comparisonOpen}
         savedCount={props.savedIds.length}
         onViewChange={props.setActiveView}
         onNavigationChange={props.setNavigationOpen}
@@ -84,11 +107,18 @@ export function ShopperWorkspace(props: ShopperWorkspaceProps) {
           model={props.model}
           activeView={props.activeView}
           query={props.search.query}
+          aiAvailable={props.aiAvailable}
+          filters={props.search.filters}
+          onFiltersChange={props.search.setFilters}
+          onCancelSearch={props.search.cancelSearch}
           activeQuery={props.search.activeQuery}
           searchState={props.search.searchLoading ? "searching" : props.search.searchResult ? "complete" : "idle"}
           searchError={props.search.searchError}
           searchResult={props.search.searchResult}
           catalog={props.catalog}
+          catalogTotal={props.catalogTotal}
+          hasMoreProducts={props.hasMoreProducts}
+          onLoadMore={props.onLoadMore}
           catalogLoading={props.catalogLoading}
           catalogError={props.catalogError}
           activeCategory={props.activeCategory}
@@ -106,7 +136,10 @@ export function ShopperWorkspace(props: ShopperWorkspaceProps) {
           onCategoryChange={props.setActiveCategory}
           onRefreshCatalog={() => void props.retryCatalog()}
           onToggleSaved={toggleSaved}
-          onToggleCompare={props.comparison.toggleComparison}
+          onToggleCompare={(id) => {
+            rememberProduct(id);
+            props.comparison.toggleComparison(id);
+          }}
           onFeedback={(productId, helpful) => void props.feedback.submitFeedback(productId, helpful)}
           onCompareSelected={() => props.comparison.setComparisonOpen(true)}
         />
@@ -114,6 +147,7 @@ export function ShopperWorkspace(props: ShopperWorkspaceProps) {
       </ShopperShell>
       <WorkspaceDialogs
         model={props.model}
+        theme={props.theme}
         compareIds={props.comparison.compareIds}
         comparedProducts={comparedProducts}
         comparisonOpen={props.comparison.comparisonOpen}

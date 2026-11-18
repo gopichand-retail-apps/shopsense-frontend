@@ -3,6 +3,11 @@
 import { ArrowRight, ChevronDown, GitCompareArrows, Search, X } from "lucide-react";
 import { CategoryFilters, EmptyState, ProductResults } from "@/components/CatalogComponents";
 import { ProductCard } from "@/components/ProductCard";
+import { SearchAssistance, SearchAssistanceStatus } from "@/components/SearchAssistance";
+import { VoiceInput } from "@/components/VoiceInput";
+import { SearchFilters } from "@/components/SearchFilters";
+import { StoreGuide } from "@/components/StoreGuide";
+import type { ProductFilters } from "@/lib/model";
 import { copy, type PublicModel, type CatalogProduct, type Recommendation, type SearchResult } from "@/lib/model";
 
 export type WorkspaceView = "discover" | "saved";
@@ -12,11 +17,18 @@ interface ShopperContentProps {
   model: PublicModel;
   activeView: WorkspaceView;
   query: string;
+  aiAvailable: boolean;
+  filters: ProductFilters;
+  onFiltersChange: (filters: ProductFilters) => void;
+  onCancelSearch: () => void;
   activeQuery: string;
   searchState: SearchState;
   searchError: string | null;
   searchResult: SearchResult | null;
   catalog: CatalogProduct[];
+  catalogTotal: number;
+  hasMoreProducts: boolean;
+  onLoadMore: () => void;
   catalogLoading: boolean;
   catalogError: string | null;
   activeCategory: string;
@@ -82,30 +94,29 @@ function DiscoveryPage(props: ShopperContentProps) {
   const { model } = props;
   return (
     <>
-      <section className="discovery-hero">
-        <div className="hero-copy">
-          <span className="page-overline">
-            <span className="hero-sparkle">
-              <Search size={13} aria-hidden="true" />
+      {!props.searchResult && (
+        <section className="discovery-hero">
+          <div className="hero-copy">
+            <span className="page-overline">
+              <span className="hero-sparkle">
+                <Search size={13} aria-hidden="true" />
+              </span>
+              {copy(model, "eyebrow")}
             </span>
-            {copy(model, "eyebrow")}
-          </span>
-          <h1>
-            {copy(model, "headline")
-              .split("\n")
-              .map((line) => (
-                <span key={line}>{line}</span>
-              ))}
-          </h1>
-          <p>{copy(model, "description")}</p>
-        </div>
-        <div className="hero-note">
-          <span>01</span>
-          <p>{copy(model, "catalogGrounding")}</p>
-        </div>
-      </section>
+            <h1>
+              {copy(model, "headline")
+                .split("\n")
+                .map((line) => (
+                  <span key={line}>{line}</span>
+                ))}
+            </h1>
+            <p>{copy(model, "description")}</p>
+          </div>
+        </section>
+      )}
 
       <SearchPanel {...props} />
+      <StoreGuide model={model} />
       {props.searchState === "idle" && !props.searchResult && <QuickPrompts model={model} onPrompt={props.onPrompt} />}
       {props.searchState === "searching" && <SearchStatus model={model} />}
       {props.searchResult && <RecommendationSection {...props} />}
@@ -122,6 +133,10 @@ function SearchPanel({
   onQueryChange,
   onClearQuery,
   onSubmitSearch,
+  aiAvailable,
+  filters,
+  onFiltersChange,
+  onCancelSearch,
 }: ShopperContentProps) {
   return (
     <section className="search-panel" aria-label={copy(model, "searchLabel")}>
@@ -138,6 +153,7 @@ function SearchPanel({
           <input
             id="shop-query"
             type="search"
+            aria-describedby="search-guidance"
             value={query}
             maxLength={model.search.maximumQueryCharacters}
             placeholder={copy(model, "searchPlaceholder")}
@@ -153,18 +169,26 @@ function SearchPanel({
               <X size={16} aria-hidden="true" />
             </button>
           )}
+          <VoiceInput model={model} onTranscript={onQueryChange} />
           <button className="search-submit" type="submit" disabled={searchState === "searching"}>
             {searchState === "searching" ? copy(model, "searching") : copy(model, "searchAction")}
             <ArrowRight size={16} aria-hidden="true" />
           </button>
+          {searchState === "searching" && (
+            <button type="button" className="text-action" onClick={onCancelSearch}>
+              {copy(model, "cancelSearch")}
+            </button>
+          )}
         </div>
         <div className="search-footer">
-          <span>{copy(model, "searchGuidance")}</span>
+          <span id="search-guidance">{copy(model, "searchGuidance")}</span>
           <span>
             {query.length}/{model.search.maximumQueryCharacters}
           </span>
         </div>
+        <SearchFilters model={model} filters={filters} onChange={onFiltersChange} />
       </form>
+      <SearchAssistance model={model} available={aiAvailable} />
       {searchError && (
         <p className="inline-error" role="alert">
           {searchError}
@@ -182,9 +206,8 @@ function QuickPrompts({ model, onPrompt }: { model: PublicModel; onPrompt: (prom
         <ChevronDown size={14} aria-hidden="true" />
       </div>
       <div className="quick-prompt-list">
-        {model.quickPrompts.map((prompt, index) => (
+        {model.quickPrompts.map((prompt) => (
           <button key={prompt} type="button" className="quick-prompt" onClick={() => onPrompt(prompt)}>
-            <span className="prompt-index">0{index + 1}</span>
             <span>{prompt}</span>
             <ArrowRight size={14} aria-hidden="true" />
           </button>
@@ -229,11 +252,19 @@ function RecommendationSection({
           </span>
           <h2 id="results-heading">{copy(model, "resultsTitle")}</h2>
           <p className="results-summary">{searchResult.summary}</p>
+          <SearchAssistanceStatus model={model} result={searchResult} />
         </div>
         <div className="results-tools">
           <span className="result-count">
-            {searchResult.resultCount} {copy(model, "resultCount")}
+            {copy(model, "recommendationCount")
+              .replace("{shown}", String(recommendations.length))
+              .replace("{total}", String(searchResult.totalMatches ?? searchResult.resultCount))}
           </span>
+          {searchResult.resultCount > 0 && (
+            <button type="button" className="text-action" onClick={onClearQuery}>
+              {copy(model, "backToDiscover")}
+            </button>
+          )}
           <button type="button" className="compare-launch" disabled={!compareIds.length} onClick={onCompareSelected}>
             <GitCompareArrows size={15} aria-hidden="true" />
             {copy(model, "compareSelected")}
@@ -275,7 +306,6 @@ function RecommendationSection({
 function CatalogSection(props: ShopperContentProps) {
   const {
     model,
-    catalog,
     catalogError,
     catalogLoading,
     recommendations,
@@ -297,7 +327,7 @@ function CatalogSection(props: ShopperContentProps) {
           <h2>{copy(model, "catalogTitle")}</h2>
         </div>
         <span className="result-count">
-          {catalog.length} {copy(model, "catalogCount")}
+          {props.catalogTotal} {copy(model, "catalogCount")}
         </span>
       </div>
       {catalogError && (
@@ -329,6 +359,11 @@ function CatalogSection(props: ShopperContentProps) {
       ) : !catalogLoading && !catalogError ? (
         <EmptyState model={model} title={copy(model, "emptyTitle")} description={copy(model, "emptyDescription")} />
       ) : null}
+      {props.hasMoreProducts && (
+        <button type="button" className="text-action load-more" onClick={props.onLoadMore} disabled={catalogLoading}>
+          {copy(model, "loadMoreProducts")}
+        </button>
+      )}
     </section>
   );
 }

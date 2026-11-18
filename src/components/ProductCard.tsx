@@ -1,5 +1,5 @@
-import Image from "next/image";
-import { Bookmark, Check, GitCompareArrows } from "lucide-react";
+import { ProductImage, PhotoCredit } from "./ProductImage";
+import { Bookmark, Check, GitCompareArrows, MapPin } from "lucide-react";
 import { copy, formatPrice, nestedCopy } from "@/lib/model";
 import type { PublicModel, Recommendation } from "@/lib/model";
 
@@ -29,18 +29,16 @@ export function ProductCard({
   onFeedback,
 }: ProductCardProps) {
   const { product, matchedDetails } = recommendation;
+  const illustrative = product.id.startsWith("sample-") && product.brand === "ShopSense Sample";
+  const description = illustrative ? `${product.attributes[0]}. ${product.attributes.at(-1)}.` : product.description;
 
   return (
     <article className="product-card" data-testid="product-card">
       <div className="product-image-wrap">
-        <Image
-          src={product.imageUrl}
-          alt={product.imageAlt}
-          fill
-          sizes="(max-width: 700px) 100vw, (max-width: 1100px) 50vw, 33vw"
-          unoptimized
-        />
-        <span className="product-brand">{product.brand}</span>
+        <ProductImage key={product.imageUrl} model={model} product={product} />
+        <span className="product-brand">
+          {illustrative ? nestedCopy(model, "categories", product.category) : product.brand}
+        </span>
         <button
           className={saved ? "save-button is-saved" : "save-button"}
           type="button"
@@ -52,6 +50,7 @@ export function ProductCard({
         </button>
       </div>
       <div className="product-card-body">
+        <PhotoCredit model={model} product={product} />
         <div className="product-card-title-row">
           <div>
             <span className="product-category">{nestedCopy(model, "categories", product.category)}</span>
@@ -59,11 +58,22 @@ export function ProductCard({
           </div>
           <strong className="product-price">{formatPrice(model, product.priceCents)}</strong>
         </div>
-        <p className="product-description">{product.description}</p>
+        <p className="product-description">{description}</p>
+        {product.location && (
+          <p className="product-location">
+            <MapPin size={15} aria-hidden="true" />
+            {copy(model, "productLocation")
+              .replace("{aisle}", product.location.aisle)
+              .replace("{rack}", product.location.rack)
+              .replace("{shelf}", String(product.location.shelf))}
+          </p>
+        )}
         <div className="match-details">
-          <span className="match-details-heading">{copy(model, "groundedIn")}</span>
+          <span className="match-details-heading">
+            {copy(model, matchedDetails.length ? "groundedIn" : "productDetails")}
+          </span>
           <ul>
-            {matchedDetails.map((detail) => (
+            {(matchedDetails.length ? matchedDetails : product.attributes.slice(0, 3)).map((detail) => (
               <li key={detail}>{detail}</li>
             ))}
           </ul>

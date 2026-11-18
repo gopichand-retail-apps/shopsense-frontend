@@ -8,23 +8,31 @@ import { useShopperCatalogRetry } from "@/hooks/useShopperCatalogRetry";
 import { useShopperComparison } from "@/hooks/useShopperComparison";
 import { useShopperFeedback } from "@/hooks/useShopperFeedback";
 import { useShopperSearch } from "@/hooks/useShopperSearch";
+import { useCatalogPagination } from "@/hooks/useCatalogPagination";
 
 export function ShopperApp() {
   const bootstrap = useShopperBootstrap();
   const [activeView, setActiveView] = useState<WorkspaceView>("discover");
   const [activeCategory, setActiveCategory] = useState("all");
+  const [browseCategory, setBrowseCategory] = useState("all");
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const feedback = useShopperFeedback(bootstrap.model, setNotice);
   const search = useShopperSearch({
     model: bootstrap.model,
     setActiveView,
+    setActiveCategory,
     setServiceConnected: bootstrap.setServiceConnected,
     setNotice,
     clearFeedback: feedback.clearFeedback,
   });
   const comparison = useShopperComparison(bootstrap.model, setNotice);
-  const retryCatalog = useShopperCatalogRetry(bootstrap);
+  const reloadCatalog = useShopperCatalogRetry({ ...bootstrap, category: browseCategory });
+  const pagination = useCatalogPagination(bootstrap, setBrowseCategory);
+  async function retryCatalog() {
+    pagination.reset();
+    await reloadCatalog();
+  }
   const model = bootstrap.model;
 
   if (!model) {
@@ -43,18 +51,27 @@ export function ShopperApp() {
     <ShopperWorkspace
       model={model}
       catalog={bootstrap.catalog}
+      catalogTotal={bootstrap.catalogTotal}
+      referencedProducts={bootstrap.referencedProducts}
+      setReferencedProducts={bootstrap.setReferencedProducts}
+      hasMoreProducts={pagination.hasMore}
+      onLoadMore={() => void pagination.loadMore(browseCategory)}
       catalogError={bootstrap.catalogError}
       catalogLoading={bootstrap.catalogLoading}
       offline={bootstrap.offline}
       serviceConnected={bootstrap.serviceConnected}
+      aiAvailable={bootstrap.aiAvailable}
       theme={bootstrap.theme}
       setTheme={bootstrap.setTheme}
       savedIds={bootstrap.savedIds}
       setSavedIds={bootstrap.setSavedIds}
       activeView={activeView}
       setActiveView={setActiveView}
-      activeCategory={activeCategory}
-      setActiveCategory={setActiveCategory}
+      activeCategory={search.searchResult || activeView === "saved" ? activeCategory : browseCategory}
+      setActiveCategory={(category) => {
+        if (search.searchResult || activeView === "saved") setActiveCategory(category);
+        else void pagination.selectCategory(category);
+      }}
       navigationOpen={navigationOpen}
       setNavigationOpen={setNavigationOpen}
       notice={notice}
