@@ -33,8 +33,8 @@ test("shows offline state and verifies service health after reconnecting", async
 
 test("API requests carry and return the same request ID", async ({ page }) => {
   const [request, response] = await Promise.all([
-    page.waitForRequest((candidate) => candidate.url().endsWith("/api/v1/catalog")),
-    page.waitForResponse((candidate) => candidate.url().endsWith("/api/v1/catalog")),
+    page.waitForRequest((candidate) => new URL(candidate.url()).pathname === "/api/v2/catalog"),
+    page.waitForResponse((candidate) => new URL(candidate.url()).pathname === "/api/v2/catalog"),
     page.reload(),
   ]);
   const requestId = (await request.allHeaders())["x-request-id"];
@@ -159,7 +159,7 @@ test("replaces model locale, shopper copy, and document metadata", async ({ page
 
 test("API errors map known codes to model copy instead of backend messages", async ({ page }) => {
   const rawBackendMessage = "Internal catalog exception detail.";
-  await page.route("**/api/v1/search", (route) =>
+  await page.route("**/api/v2/search", (route) =>
     route.fulfill({
       status: 503,
       contentType: "application/json",
@@ -174,7 +174,7 @@ test("API errors map known codes to model copy instead of backend messages", asy
 
 test("unknown API error codes use generic model copy", async ({ page }) => {
   const rawBackendMessage = "Internal catalog exception detail.";
-  await page.route("**/api/v1/search", (route) =>
+  await page.route("**/api/v2/search", (route) =>
     route.fulfill({
       status: 503,
       contentType: "application/json",

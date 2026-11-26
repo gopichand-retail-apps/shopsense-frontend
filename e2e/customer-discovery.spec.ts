@@ -8,7 +8,7 @@ test("customer refines a search, finds its aisle, saves it, compares it and retu
   await page.getByLabel("Collection", { exact: true }).selectOption("men");
   await page.getByLabel("Color", { exact: true }).selectOption("black");
   await page.getByLabel("Budget", { exact: true }).selectOption("2500");
-  const response = page.waitForResponse((value) => value.url().endsWith("/api/v1/search"));
+  const response = page.waitForResponse((value) => value.url().endsWith("/api/v2/search"));
   await page.getByRole("button", { name: "Find products", exact: true }).click();
   const { data } = await (await response).json();
   expect(data.results).toHaveLength(2);

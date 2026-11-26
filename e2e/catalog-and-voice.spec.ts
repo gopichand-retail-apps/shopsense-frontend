@@ -19,7 +19,7 @@ test("browses 308 records in pages and fetches the selected category from the da
 test("filters black dresses by audience and restores saved products outside the first page", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("searchbox").fill("black dress for men");
-  const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/v1/search"));
+  const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/v2/search"));
   await page.getByRole("button", { name: "Find products" }).click();
   const payload = await (await responsePromise).json();
   expect(payload.data.results).toHaveLength(2);
@@ -63,7 +63,7 @@ test("voice creates an editable transcript and only submits after the shopper se
   });
   let searches = 0;
   page.on("request", (request) => {
-    if (request.url().endsWith("/api/v1/search")) searches += 1;
+    if (request.url().endsWith("/api/v2/search")) searches += 1;
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Use microphone for voice input" }).click();

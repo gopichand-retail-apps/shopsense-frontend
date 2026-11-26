@@ -94,6 +94,14 @@ uses an isolated in-memory API with provider doubles or catalog ranking; the bac
 
 API failures map stable error codes to model copy; backend-provided message text is not rendered directly.
 
+Store stock (SS-01 to SS-03): browse, saved/compare lookups and search use the backend's read-only `/api/v2`
+offer routes; health, feedback and store layout stay on `/api/v1`. A store picker, kept in memory only, anchors
+discovery. Cards show offer currency, SKU and availability at that store, and missing or stale stock never reads as
+in stock. Results carry a "Catalog updated" time, a stale warning, an empty-store state and a no-match state that
+can include unconfirmed items. Matched details open the stored attribute they came from. `/staff` is a read-only
+feed-status page with "Connect catalog" onboarding. It has no sign-in, so keep it local. See
+[store stock and honest states](docs/architecture.md#store-stock-freshness-and-honest-states-ss-01-to-ss-03--november-26-2026).
+
 See the [canonical architecture and workflow diagrams](docs/architecture.md), [threat model](docs/architecture.md#8-security-privacy-and-egress), [quality status](docs/architecture.md#13-dated-verification-and-limitations), and [API setup and contract](https://github.com/gopichand-retail-apps/shopsense-backend/blob/main/README.md). Identity, catalog-editor authorization, and remote exposure are not currently implemented.
 
 ## Vercel frontend configuration

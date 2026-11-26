@@ -115,6 +115,12 @@ UI entry and interaction owners:
 - [src/components/ShopperFrame.tsx](../src/components/ShopperFrame.tsx)
 - [src/components/ShopperShell.tsx](../src/components/ShopperShell.tsx)
 - [src/components/ShopperWorkspace.tsx](../src/components/ShopperWorkspace.tsx)
+- [src/components/LocationPicker.tsx](../src/components/LocationPicker.tsx) and
+  [src/components/OfferNotices.tsx](../src/components/OfferNotices.tsx): store choice, stock lines, freshness,
+  stale and saved-item notices
+- [src/app/staff/page.tsx](../src/app/staff/page.tsx) with
+  [src/components/StaffStatus.tsx](../src/components/StaffStatus.tsx): read-only `/staff` feed status and
+  "Connect catalog" onboarding (noindex, no sign-in in this build)
 
 The active model is [public/shopsense-ai-model.json](../public/shopsense-ai-model.json). Preserve existing loading, empty, validation, permission, success, and failure states; model text does not provide server identity. Next App Router layout/page files own page composition; dialogs and selected views stay in the existing client components. Follow the authored source for request cancellation, retry, focus cleanup, and local preference behavior; do not infer an offline queue where none exists.
 
@@ -319,6 +325,14 @@ The companion API contract is in [shopsense-backend](https://github.com/gopichan
 | POST   | `/api/v1/search`   | Bounded query, useAi, facets         | Ranked catalog products and matched details |
 | POST   | `/api/v1/feedback` | `{ productId, helpful }`    | Persisted feedback acceptance               |
 | GET | `/api/v1/store-layout` | None | Versioned original virtual aisles and racks |
+| GET | `/api/v2/locations` | None | Store list for the picker |
+| GET | `/api/v2/catalog` | `location`, `category`, `limit`, `offset`, `ids` | Browse pages and saved/compare lookups with stock, `unavailableIds` and freshness |
+| POST | `/api/v2/search` | Query, `useAi`, `location`, facets, `availableOnly` | Shopper search with stock, attribute-linked `matches` and freshness |
+| GET | `/api/v2/feed-status` | None | `/staff` page state, counts and freshness |
+
+Since SS-01 to SS-03 the shopper browse, saved/compare lookups and search use the v2 routes; health, feedback and
+store layout stay on v1. The client derives the v2 base from the model's `apiBaseUrl` (`/api/v1` becomes `/api/v2`),
+so no new content-model key or environment variable is needed, and the existing `/api/:path*` rewrite covers both.
 
 Success responses use `{ data }`; failures use `{ error: { code, message, requestId } }`. The complete request/response contract is in [`shopsense-backend/openapi.yaml`](https://github.com/gopichand-retail-apps/shopsense-backend/blob/main/openapi.yaml). `X-Request-ID` and `X-Trace-ID` are returned on responses; request IDs are included in structured logs. Request bodies and raw queries are not logged.
 
@@ -718,3 +732,46 @@ results are pending the separately recorded release checks; do not infer them fr
 ## Customer QA update — November 17, 2026
 
 The [customer-discovery release record](releases/2026-11-17-customer-discovery.md) supersedes earlier current-test counts and describes automatic AI, evidence-backed need matching, filters, versioned virtual locations, reviewed photographs, local browser evidence, and the unresolved frontend dependency advisory. Runtime model facts come from the backend snapshot; sibling checkout is an authoring and paired-E2E dependency. Production access and actual merchant commerce remain unfinished.
+
+## Store stock, freshness and honest states (SS-01 to SS-03) — November 26, 2026
+
+Stage B slice, local only, on branch `feature/ss-01-03-local-discovery`. That branch is stacked on the unmerged
+`feature/customer-discovery-20261116` commit `55529b2` by owner decision. The backend contract and rules are in the
+backend guide's matching section.
+
+### What the shopper sees
+
+| State | Trigger from the API | Presentation (all copy from the content model) |
+| --- | --- | --- |
+| Store chosen | `GET /api/v2/locations` | Picker anchored on the first store; "Any store (stock not checked)" removes stock claims |
+| In stock | fresh `in_stock` | "In stock at {store} · Confirmed {time}" with icon; never by colour alone |
+| Out of stock | fresh `out_of_stock` | "Out of stock at {store} · Confirmed {time}" |
+| Unconfirmed | missing record | "Stock not confirmed at {store}" |
+| Stale record | `stale: true` | "Stock not confirmed at {store} · last checked {time}" |
+| Fresh catalog | `catalog.state: "ready"` | "Catalog updated {time}" |
+| Stale catalog | `catalog.state: "stale"` | Status region "Store information may be out of date" |
+| Empty store | `catalog.state: "empty"` | "No products published for this store." in browse and search |
+| No in-stock match | zero results with the in-stock filter | No-match state plus "Include unconfirmed items", which reruns without that filter only |
+| Withdrawn saved item | `unavailableIds` | Saved list notice with "Remove unavailable items" |
+| Withdrawn compared item | `unavailableIds` on open | Item dropped and a notice before the dialog opens |
+| Stores unavailable | locations request fails | Explanation, browsing without stock, in-stock filter disabled with a reason |
+
+Matched details that came from a stored attribute are buttons. Activating one opens the card's "Stored attributes"
+list and moves focus to that attribute. The comparison dialog adds aligned availability, SKU and price-update rows.
+
+### State ownership
+
+The selected store is held in memory only. There is no new browser-storage key, and reload returns to the first
+store. Changing the store reloads the browse page, re-runs an active search with the new store, and refreshes saved
+items. Clearing the store also clears the in-stock filter. Both data modes call the same API; `NEXT_PUBLIC_IS_MOCK`
+still only selects the origin.
+
+### Verification and limits
+
+Unit tests: `OfferDiscovery.test.tsx`, `OfferStates.test.tsx`, `StaffStatus.test.tsx` and `api.test.ts`.
+Browser tests: `e2e/offers.spec.ts`, covering API-driven stock text, a keyboard-only store, filter, compare and
+evidence path, 320/390/768/1280 px layouts, real staff counts, and contract fixtures for empty and stale states.
+Results and their dates are in the Stage B evidence record. The `/staff` page has no sign-in; it is read-only and
+must gain staff authorization before remote exposure. Screen-reader, contrast-measurement and real-device checks
+were not performed. Existing dark-theme match chips (`.match-details li`) appear to pair dark text on a dark
+background; this predates the slice and is recorded, not changed.

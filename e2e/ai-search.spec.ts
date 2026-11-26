@@ -15,8 +15,12 @@ for (const status of ["assisted", "unavailable"] as const) {
         },
       }),
     );
-    await page.route("**/api/v1/search", async (route) => {
-      expect(route.request().postDataJSON()).toEqual({ query: "A light pack for weekend trails", useAi: true });
+    await page.route("**/api/v2/search", async (route) => {
+      expect(route.request().postDataJSON()).toEqual({
+        query: "A light pack for weekend trails",
+        useAi: true,
+        location: "store-a",
+      });
       const product = structuredClone(envelope.data.seed.products[0]);
       Reflect.deleteProperty(product, "matchTags");
       await route.fulfill({
@@ -34,7 +38,7 @@ for (const status of ["assisted", "unavailable"] as const) {
     });
     await page.goto("/");
     await expect(page.getByText(envelope.messages.aiSearchReady)).toBeVisible();
-    await expect(page.getByRole("checkbox")).toHaveCount(0);
+    await expect(page.getByRole("checkbox", { name: envelope.messages.aiSearchLabel })).toHaveCount(0);
     await page.getByText(envelope.messages.searchPrivacy).click();
     await expect(page.getByText(envelope.messages.aiSearchDisclosure)).toBeVisible();
     await page.getByRole("searchbox").fill("A light pack for weekend trails");

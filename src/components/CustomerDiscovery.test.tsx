@@ -12,6 +12,9 @@ it("submits the selected collection, color and budget to the API and clears them
   const user = userEvent.setup();
   render(<ShopperApp />);
   const query = await screen.findByRole("searchbox");
+  await waitFor(() =>
+    expect(screen.getByRole("combobox", { name: String(model.copy.locationLabel) })).toHaveValue("store-a"),
+  );
   await user.selectOptions(screen.getByLabelText(String(model.copy.audienceFilter)), "men");
   await user.selectOptions(screen.getByLabelText(String(model.copy.colorFilter)), "black");
   await user.selectOptions(screen.getByLabelText(String(model.copy.budgetFilter)), "2500");
