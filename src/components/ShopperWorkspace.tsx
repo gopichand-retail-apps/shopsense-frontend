@@ -1,7 +1,10 @@
 "use client";
 
 import { RefreshCw, WifiOff } from "lucide-react";
+import { useMemo } from "react";
 import { toRecommendation } from "@/components/CatalogComponents";
+import type { LocationsStatus } from "@/components/LocationPicker";
+import { LocationNamesContext, locationNames } from "@/components/OfferNotices";
 import { ShopperContent, type WorkspaceView } from "@/components/ShopperContent";
 import { ShopperShell } from "@/components/ShopperShell";
 import { WorkspaceDialogs } from "@/components/WorkspaceDialogs";
@@ -10,13 +13,21 @@ import type { useShopperBootstrap } from "@/hooks/useShopperBootstrap";
 import type { useShopperComparison } from "@/hooks/useShopperComparison";
 import type { useShopperFeedback } from "@/hooks/useShopperFeedback";
 import type { useShopperSearch } from "@/hooks/useShopperSearch";
-import { copy, type CatalogProduct, type PublicModel, type ThemeMode } from "@/lib/model";
+import {
+  copy,
+  type CatalogFreshness,
+  type CatalogProduct,
+  type PublicModel,
+  type StoreLocation,
+  type ThemeMode,
+} from "@/lib/model";
 import type { Dispatch, SetStateAction } from "react";
 
 interface ShopperWorkspaceProps {
   model: PublicModel;
   catalog: CatalogProduct[];
   catalogTotal: number;
+  catalogFreshness: CatalogFreshness | null;
   referencedProducts: CatalogProduct[];
   setReferencedProducts: Dispatch<SetStateAction<CatalogProduct[]>>;
   hasMoreProducts: boolean;
@@ -30,6 +41,14 @@ interface ShopperWorkspaceProps {
   setTheme: Dispatch<SetStateAction<ThemeMode>>;
   savedIds: string[];
   setSavedIds: ReturnType<typeof useShopperBootstrap>["setSavedIds"];
+  unavailableSavedIds: string[];
+  onRemoveUnavailableSaved: () => void;
+  locations: StoreLocation[];
+  locationsStatus: LocationsStatus;
+  locationId: string | null;
+  onLocationChange: (locationId: string | null) => void;
+  onIncludeUnconfirmed: () => void;
+  onOpenComparison: () => void;
   activeView: WorkspaceView;
   setActiveView: Dispatch<SetStateAction<WorkspaceView>>;
   activeCategory: string;
@@ -45,12 +64,14 @@ interface ShopperWorkspaceProps {
 }
 
 export function ShopperWorkspace(props: ShopperWorkspaceProps) {
+  const names = useMemo(() => locationNames(props.locations), [props.locations]);
+  // Later entries win: refreshed saved/compared snapshots replace older catalog or search copies.
   const knownProducts = [
     ...new Map(
       [
-        ...props.referencedProducts,
         ...props.catalog,
         ...(props.search.searchResult?.results.map((item) => item.product) ?? []),
+        ...props.referencedProducts,
       ].map((product) => [product.id, product]),
     ).values(),
   ];
@@ -80,7 +101,7 @@ export function ShopperWorkspace(props: ShopperWorkspaceProps) {
   }
 
   return (
-    <>
+    <LocationNamesContext.Provider value={names}>
       <ShopperShell
         model={props.model}
         activeView={props.activeView}
@@ -117,6 +138,7 @@ export function ShopperWorkspace(props: ShopperWorkspaceProps) {
           searchResult={props.search.searchResult}
           catalog={props.catalog}
           catalogTotal={props.catalogTotal}
+          catalogFreshness={props.catalogFreshness}
           hasMoreProducts={props.hasMoreProducts}
           onLoadMore={props.onLoadMore}
           catalogLoading={props.catalogLoading}
@@ -124,6 +146,13 @@ export function ShopperWorkspace(props: ShopperWorkspaceProps) {
           activeCategory={props.activeCategory}
           recommendations={visibleRecommendations}
           savedIds={props.savedIds}
+          unavailableSavedIds={props.unavailableSavedIds}
+          onRemoveUnavailableSaved={props.onRemoveUnavailableSaved}
+          locations={props.locations}
+          locationsStatus={props.locationsStatus}
+          locationId={props.locationId}
+          onLocationChange={props.onLocationChange}
+          onIncludeUnconfirmed={props.onIncludeUnconfirmed}
           compareIds={props.comparison.compareIds}
           feedbackByProduct={props.feedback.feedbackByProduct}
           onQueryChange={props.search.setQuery}
@@ -141,7 +170,7 @@ export function ShopperWorkspace(props: ShopperWorkspaceProps) {
             props.comparison.toggleComparison(id);
           }}
           onFeedback={(productId, helpful) => void props.feedback.submitFeedback(productId, helpful)}
-          onCompareSelected={() => props.comparison.setComparisonOpen(true)}
+          onCompareSelected={props.onOpenComparison}
         />
         <WorkspaceNotice notice={props.notice} feedbackError={props.feedback.feedbackError} />
       </ShopperShell>
@@ -151,10 +180,10 @@ export function ShopperWorkspace(props: ShopperWorkspaceProps) {
         compareIds={props.comparison.compareIds}
         comparedProducts={comparedProducts}
         comparisonOpen={props.comparison.comparisonOpen}
-        onOpenComparison={() => props.comparison.setComparisonOpen(true)}
+        onOpenComparison={props.onOpenComparison}
         onCloseComparison={() => props.comparison.setComparisonOpen(false)}
         onClearComparison={() => props.comparison.setCompareIds([])}
       />
-    </>
+    </LocationNamesContext.Provider>
   );
 }

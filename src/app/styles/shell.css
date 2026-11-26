@@ -63,7 +63,8 @@ summary:focus-visible {
 }
 
 .shop-shell[data-theme="dark"],
-.workspace-overlays[data-theme="dark"] {
+.workspace-overlays[data-theme="dark"],
+.staff-page[data-theme="dark"] {
   --page: #151d1a;
   --surface: #1d2924;
   --surface-soft: #22312b;

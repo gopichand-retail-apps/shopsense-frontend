@@ -1,5 +1,32 @@
 import { z } from "zod";
 
+export const offerSchema = z
+  .object({
+    merchantId: z.string(),
+    sku: z.string(),
+    sourceVersion: z.number().int().positive(),
+    priceCents: z.number().int().nonnegative(),
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    updatedAt: z.string(),
+  })
+  .strict();
+
+export const availabilitySchema = z
+  .object({
+    locationId: z.string(),
+    state: z.enum(["in_stock", "out_of_stock", "unknown"]),
+    confirmedAt: z.string().nullable(),
+    stale: z.boolean(),
+  })
+  .strict();
+
+export const catalogFreshnessSchema = z.object({
+  state: z.enum(["empty", "ready", "stale"]),
+  asOf: z.string().nullable(),
+  generatedAt: z.string(),
+  maxAgeMinutes: z.number().int().positive(),
+});
+
 export const productSchema = z
   .object({
     id: z.string(),
@@ -35,6 +62,8 @@ export const productSchema = z
       })
       .strict()
       .optional(),
+    offer: offerSchema.optional(),
+    availability: availabilitySchema.nullable().optional(),
   })
   .strict();
 
@@ -44,6 +73,8 @@ const messagesSchema = z
       .object({
         invalidRequest: z.string(),
         invalidSearch: z.string(),
+        invalidLocation: z.string(),
+        offersUnavailable: z.string(),
         notFound: z.string(),
         originNotAllowed: z.string(),
         payloadTooLarge: z.string(),
@@ -130,15 +161,21 @@ export const publicModelSchema = contentModelSchema.transform((envelope) => ({
 export type ContentModelEnvelope = z.infer<typeof contentModelSchema>;
 export type PublicModel = z.infer<typeof publicModelSchema>;
 export type CatalogProduct = z.infer<typeof productSchema>;
+export type Availability = z.infer<typeof availabilitySchema>;
+export type CatalogFreshness = z.infer<typeof catalogFreshnessSchema>;
+export type StoreLocation = { id: string; name: string };
 export type ThemeMode = PublicModel["app"]["defaultTheme"];
+export type AttributeMatch = { field: "attributes" | "tags"; index?: number; text: string };
 export type Recommendation = {
   product: CatalogProduct;
   matchedDetails: string[];
+  matches?: AttributeMatch[];
 };
 export type ProductFilters = {
   audience?: "women" | "men" | "kids" | "unisex";
   color?: "black" | "white" | "navy" | "red" | "green" | "blue";
   maximumPriceCents?: number;
+  availableOnly?: boolean;
 };
 export type SearchResult = {
   intentCategory: string | null;
@@ -147,6 +184,7 @@ export type SearchResult = {
   summary: string;
   source: string;
   totalMatches?: number;
+  catalog?: CatalogFreshness;
   assistance?: {
     status: "catalog" | "assisted" | "unavailable";
     provider: "local" | "gemini" | "ollama";
@@ -174,10 +212,23 @@ export function nestedCopy(model: PublicModel, section: string, key: string): st
   return value;
 }
 
-export function formatPrice(model: PublicModel, cents: number): string {
+// Fills named {placeholders} in a content-model string; unknown placeholders are left as written.
+export function copyWith(model: PublicModel, key: string, values: Record<string, string | number>): string {
+  return copy(model, key).replace(/\{(\w+)\}/g, (match, name: string) =>
+    name in values ? String(values[name]) : match,
+  );
+}
+
+export function formatPrice(model: PublicModel, cents: number, currency = model.app.currency): string {
   return new Intl.NumberFormat(model.app.locale, {
     style: "currency",
-    currency: model.app.currency,
+    currency,
     maximumFractionDigits: 2,
   }).format(cents / 100);
+}
+
+export function formatDateTime(model: PublicModel, isoTimestamp: string): string {
+  return new Intl.DateTimeFormat(model.app.locale, { dateStyle: "medium", timeStyle: "short" }).format(
+    new Date(isoTimestamp),
+  );
 }

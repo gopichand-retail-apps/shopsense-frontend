@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { copy, type ProductFilters, type PublicModel } from "@/lib/model";
 
 const audiences = ["women", "men", "kids", "unisex"] as const;
@@ -9,15 +10,33 @@ const budgets = [2500, 5000, 10000] as const;
 export function SearchFilters({
   model,
   filters,
+  locationSelected,
   onChange,
 }: {
   model: PublicModel;
   filters: ProductFilters;
+  locationSelected: boolean;
   onChange: (filters: ProductFilters) => void;
 }) {
+  const hintId = useId();
   return (
     <fieldset className="search-filters">
       <legend>{copy(model, "refineSearch")}</legend>
+      <label className="stock-filter">
+        <input
+          type="checkbox"
+          checked={Boolean(filters.availableOnly) && locationSelected}
+          disabled={!locationSelected}
+          aria-describedby={locationSelected ? undefined : hintId}
+          onChange={(event) => onChange({ ...filters, availableOnly: event.target.checked || undefined })}
+        />
+        {copy(model, "availableOnlyFilter")}
+      </label>
+      {locationSelected ? null : (
+        <span id={hintId} className="filter-hint">
+          {copy(model, "availableOnlyNeedsStore")}
+        </span>
+      )}
       <label>
         {copy(model, "audienceFilter")}
         <select

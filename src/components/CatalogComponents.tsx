@@ -31,6 +31,7 @@ interface EmptyStateProps {
   title: string;
   description: string;
   onBack?: () => void;
+  action?: { label: string; onClick: () => void };
 }
 
 export function CategoryFilters({ model, activeCategory, onCategory }: CategoryFiltersProps) {
@@ -110,7 +111,7 @@ export function toRecommendation(product: CatalogProduct): Recommendation {
   return { product, matchedDetails: [] };
 }
 
-export function EmptyState({ model, title, description, onBack }: EmptyStateProps) {
+export function EmptyState({ model, title, description, onBack, action }: EmptyStateProps) {
   return (
     <div className="empty-state">
       <span className="empty-state-icon">
@@ -118,6 +119,11 @@ export function EmptyState({ model, title, description, onBack }: EmptyStateProp
       </span>
       <h3>{title}</h3>
       <p>{description}</p>
+      {action ? (
+        <button className="primary-action" type="button" onClick={action.onClick}>
+          {action.label}
+        </button>
+      ) : null}
       <button
         className="text-action"
         type="button"

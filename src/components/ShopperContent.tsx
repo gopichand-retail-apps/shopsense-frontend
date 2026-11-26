@@ -7,8 +7,17 @@ import { SearchAssistance, SearchAssistanceStatus } from "@/components/SearchAss
 import { VoiceInput } from "@/components/VoiceInput";
 import { SearchFilters } from "@/components/SearchFilters";
 import { StoreGuide } from "@/components/StoreGuide";
-import type { ProductFilters } from "@/lib/model";
-import { copy, type PublicModel, type CatalogProduct, type Recommendation, type SearchResult } from "@/lib/model";
+import { LocationPicker, type LocationsStatus } from "@/components/LocationPicker";
+import { CatalogFreshnessNotice, SavedUnavailableNotice, useLocationName } from "@/components/OfferNotices";
+import type { CatalogFreshness, ProductFilters, StoreLocation } from "@/lib/model";
+import {
+  copy,
+  copyWith,
+  type PublicModel,
+  type CatalogProduct,
+  type Recommendation,
+  type SearchResult,
+} from "@/lib/model";
 
 export type WorkspaceView = "discover" | "saved";
 type SearchState = "idle" | "searching" | "complete";
@@ -27,6 +36,14 @@ interface ShopperContentProps {
   searchResult: SearchResult | null;
   catalog: CatalogProduct[];
   catalogTotal: number;
+  catalogFreshness: CatalogFreshness | null;
+  unavailableSavedIds: string[];
+  onRemoveUnavailableSaved: () => void;
+  locations: StoreLocation[];
+  locationsStatus: LocationsStatus;
+  locationId: string | null;
+  onLocationChange: (locationId: string | null) => void;
+  onIncludeUnconfirmed: () => void;
   hasMoreProducts: boolean;
   onLoadMore: () => void;
   catalogLoading: boolean;
@@ -58,6 +75,8 @@ function SavedPage({
   recommendations,
   activeCategory,
   savedIds,
+  unavailableSavedIds,
+  onRemoveUnavailableSaved,
   compareIds,
   feedbackByProduct,
   onCategoryChange,
@@ -72,6 +91,11 @@ function SavedPage({
         <h1>{copy(model, "savedTitle")}</h1>
         <p>{copy(model, "savedDescription")}</p>
       </div>
+      <SavedUnavailableNotice
+        model={model}
+        count={unavailableSavedIds.filter((id) => savedIds.includes(id)).length}
+        onRemove={onRemoveUnavailableSaved}
+      />
       <ProductResults
         model={model}
         items={recommendations}
@@ -137,9 +161,20 @@ function SearchPanel({
   filters,
   onFiltersChange,
   onCancelSearch,
+  locations,
+  locationsStatus,
+  locationId,
+  onLocationChange,
 }: ShopperContentProps) {
   return (
     <section className="search-panel" aria-label={copy(model, "searchLabel")}>
+      <LocationPicker
+        model={model}
+        locations={locations}
+        status={locationsStatus}
+        locationId={locationId}
+        onChange={onLocationChange}
+      />
       <form
         className="search-form"
         onSubmit={(event) => {
@@ -186,7 +221,12 @@ function SearchPanel({
             {query.length}/{model.search.maximumQueryCharacters}
           </span>
         </div>
-        <SearchFilters model={model} filters={filters} onChange={onFiltersChange} />
+        <SearchFilters
+          model={model}
+          filters={filters}
+          locationSelected={Boolean(locationId)}
+          onChange={onFiltersChange}
+        />
       </form>
       <SearchAssistance model={model} available={aiAvailable} />
       {searchError && (
@@ -241,6 +281,9 @@ function RecommendationSection({
   onFeedback,
   onCompareSelected,
   onClearQuery,
+  filters,
+  locationId,
+  onIncludeUnconfirmed,
 }: ShopperContentProps) {
   if (!searchResult) return null;
   return (
@@ -253,6 +296,7 @@ function RecommendationSection({
           <h2 id="results-heading">{copy(model, "resultsTitle")}</h2>
           <p className="results-summary">{searchResult.summary}</p>
           <SearchAssistanceStatus model={model} result={searchResult} />
+          <CatalogFreshnessNotice model={model} freshness={searchResult.catalog} />
         </div>
         <div className="results-tools">
           <span className="result-count">
@@ -292,14 +336,64 @@ function RecommendationSection({
           ))}
         </div>
       ) : (
-        <EmptyState
+        <SearchEmptyState
           model={model}
-          title={copy(model, "noMatchesTitle")}
-          description={copy(model, "noMatchesDescription")}
-          onBack={onClearQuery}
+          catalogState={searchResult.catalog?.state}
+          inStockOnly={Boolean(filters.availableOnly && locationId)}
+          locationId={locationId}
+          onClearQuery={onClearQuery}
+          onIncludeUnconfirmed={onIncludeUnconfirmed}
         />
       )}
     </section>
+  );
+}
+
+// An empty store, a store with nothing confirmed in stock, and an ordinary miss are different answers.
+function SearchEmptyState({
+  model,
+  catalogState,
+  inStockOnly,
+  locationId,
+  onClearQuery,
+  onIncludeUnconfirmed,
+}: {
+  model: PublicModel;
+  catalogState: CatalogFreshness["state"] | undefined;
+  inStockOnly: boolean;
+  locationId: string | null;
+  onClearQuery: () => void;
+  onIncludeUnconfirmed: () => void;
+}) {
+  const store = useLocationName(locationId);
+  if (catalogState === "empty") {
+    return (
+      <EmptyState
+        model={model}
+        title={copy(model, "catalogEmptyTitle")}
+        description={copy(model, "catalogEmptyDescription")}
+        onBack={onClearQuery}
+      />
+    );
+  }
+  if (inStockOnly) {
+    return (
+      <EmptyState
+        model={model}
+        title={copy(model, "noMatchesTitle")}
+        description={copyWith(model, "noMatchesInStockDescription", { store })}
+        onBack={onClearQuery}
+        action={{ label: copy(model, "includeUnconfirmed"), onClick: onIncludeUnconfirmed }}
+      />
+    );
+  }
+  return (
+    <EmptyState
+      model={model}
+      title={copy(model, "noMatchesTitle")}
+      description={copy(model, "noMatchesDescription")}
+      onBack={onClearQuery}
+    />
   );
 }
 
@@ -318,13 +412,16 @@ function CatalogSection(props: ShopperContentProps) {
     onToggleCompare,
     onFeedback,
     onRefreshCatalog,
+    catalogFreshness,
   } = props;
+  const emptyStore = catalogFreshness?.state === "empty";
   return (
     <section className="catalog-section">
       <div className="catalog-heading-row">
         <div>
           <span className="section-kicker">{copy(model, "catalogSource")}</span>
           <h2>{copy(model, "catalogTitle")}</h2>
+          <CatalogFreshnessNotice model={model} freshness={catalogFreshness} />
         </div>
         <span className="result-count">
           {props.catalogTotal} {copy(model, "catalogCount")}
@@ -357,7 +454,11 @@ function CatalogSection(props: ShopperContentProps) {
           />
         </div>
       ) : !catalogLoading && !catalogError ? (
-        <EmptyState model={model} title={copy(model, "emptyTitle")} description={copy(model, "emptyDescription")} />
+        <EmptyState
+          model={model}
+          title={copy(model, emptyStore ? "catalogEmptyTitle" : "emptyTitle")}
+          description={copy(model, emptyStore ? "catalogEmptyDescription" : "emptyDescription")}
+        />
       ) : null}
       {props.hasMoreProducts && (
         <button type="button" className="text-action load-more" onClick={props.onLoadMore} disabled={catalogLoading}>

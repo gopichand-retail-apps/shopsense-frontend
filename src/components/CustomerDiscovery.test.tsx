@@ -18,10 +18,11 @@ it("submits the selected collection, color and budget to the API and clears them
   await user.type(query, "shirt");
   await user.click(screen.getByRole("button", { name: model.copy.searchAction }));
   await screen.findByRole("heading", { name: model.copy.resultsTitle });
-  const request = fetchMock.mock.calls.find(([input]) => pathnameOf(input) === "/api/v1/search");
+  const request = fetchMock.mock.calls.find(([input]) => pathnameOf(input) === "/api/v2/search");
   expect(JSON.parse(String(request?.[1]?.body))).toEqual({
     query: "shirt",
     useAi: true,
+    location: "store-a",
     filters: { audience: "men", color: "black", maximumPriceCents: 2500 },
   });
   await user.selectOptions(screen.getByLabelText(String(model.copy.audienceFilter)), "women");
@@ -41,7 +42,7 @@ it("cancels a pending search and ignores its late result when the customer chang
   vi.stubGlobal(
     "fetch",
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-      if (pathnameOf(input) === "/api/v1/search") {
+      if (pathnameOf(input) === "/api/v2/search") {
         signal = init?.signal;
         return pending.promise;
       }
@@ -54,7 +55,7 @@ it("cancels a pending search and ignores its late result when the customer chang
   await user.click(screen.getByRole("button", { name: model.copy.searchAction }));
   await user.click(screen.getByRole("button", { name: String(model.copy.cancelSearch) }));
   expect(signal?.aborted).toBe(true);
-  await act(async () => pending.resolve(responseForPath("/api/v1/search")));
+  await act(async () => pending.resolve(responseForPath("/api/v2/search")));
   expect(screen.queryByRole("heading", { name: model.copy.resultsTitle })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: model.copy.searchAction })).toBeEnabled();
 });
@@ -144,7 +145,7 @@ it("clearing the query aborts pending work without exposing its eventual network
   vi.stubGlobal(
     "fetch",
     vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
-      pathnameOf(input) === "/api/v1/search" ? pending.promise : responseForPath(pathnameOf(input), init),
+      pathnameOf(input) === "/api/v2/search" ? pending.promise : responseForPath(pathnameOf(input), init),
     ),
   );
   const user = userEvent.setup();

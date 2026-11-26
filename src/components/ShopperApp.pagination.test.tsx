@@ -2,7 +2,16 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { ShopperApp } from "./ShopperApp";
-import { envelope, jsonResponse, model, pathnameOf, products, responseForPath } from "../../tests/shopper-fixtures";
+import {
+  envelope,
+  jsonResponse,
+  model,
+  offerPage,
+  offerSearch,
+  pathnameOf,
+  products,
+  responseForPath,
+} from "../../tests/shopper-fixtures";
 
 const catalog = Array.from({ length: 60 }, (_, index) => ({
   ...products[index % products.length],
@@ -26,27 +35,21 @@ function installCatalog() {
           catalogCount: catalog.length,
         },
       });
-    if (url.pathname === "/api/v1/catalog") {
+    if (url.pathname === "/api/v2/catalog") {
       const ids = url.searchParams.get("ids")?.split(",");
       const category = url.searchParams.get("category");
       const selected = catalog.filter(
         (product) => (!ids || ids.includes(product.id)) && (!category || product.category === category),
       );
       const offset = Number(url.searchParams.get("offset") ?? 0);
-      return jsonResponse({ data: selected.slice(offset, offset + Number(url.searchParams.get("limit") ?? 24)) });
+      const items = selected.slice(offset, offset + Number(url.searchParams.get("limit") ?? 24));
+      const unavailableIds = (ids ?? []).filter((id) => !items.some((product) => product.id === id));
+      return jsonResponse(offerPage(items, { total: selected.length, unavailableIds }));
     }
-    if (url.pathname === "/api/v1/search") {
+    if (url.pathname === "/api/v2/search") {
       const product = structuredClone(catalog[59]);
       Reflect.deleteProperty(product, "matchTags");
-      return jsonResponse({
-        data: {
-          intentCategory: product.category,
-          resultCount: 1,
-          results: [{ product, matchedDetails: product.attributes.slice(0, 1) }],
-          summary: "A catalog match.",
-          source: String(model.copy.localCatalogSource),
-        },
-      });
+      return jsonResponse(offerSearch("find a product", [product], { summary: "A catalog match." }));
     }
     return responseForPath(pathnameOf(input), init);
   });
@@ -159,7 +162,7 @@ it("keeps the current category when an obsolete page request completes later", a
   await user.click(screen.getByRole("button", { name: String(model.copy.loadMoreProducts) }));
   expect(pending).toBe(true);
   await user.click(screen.getByRole("button", { name: "Audio" }));
-  await act(async () => deferred.resolve(jsonResponse({ data: catalog.slice(24, 48) })));
+  await act(async () => deferred.resolve(jsonResponse(offerPage(catalog.slice(24, 48), { total: catalog.length }))));
   await waitFor(() =>
     expect(screen.getAllByTestId("product-card")).toHaveLength(
       catalog.filter((product) => product.category === "audio").length,

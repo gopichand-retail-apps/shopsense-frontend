@@ -2,17 +2,23 @@
 
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { WorkspaceView } from "@/components/ShopperContent";
-import { searchCatalog } from "@/lib/api";
+import { searchOffers } from "@/lib/api";
 import { copy, type ProductFilters, type PublicModel, type SearchResult } from "@/lib/model";
 import { userFacingErrorCopy } from "@/lib/user-facing-error-copy";
 
 interface SearchActions {
   model: PublicModel | null;
+  locationId: string | null;
   setActiveView: Dispatch<SetStateAction<WorkspaceView>>;
   setServiceConnected: Dispatch<SetStateAction<boolean>>;
   setNotice: Dispatch<SetStateAction<string | null>>;
   clearFeedback: () => void;
   setActiveCategory: Dispatch<SetStateAction<string>>;
+}
+
+export interface SearchOverrides {
+  filters?: ProductFilters;
+  locationId?: string | null;
 }
 
 export function useShopperSearch(actions: SearchActions) {
@@ -22,7 +28,7 @@ export function useShopperSearch(actions: SearchActions) {
   useEffect(() => () => controller.current?.abort(), []);
   const state = useSearchState();
 
-  function submitQuery(value: string) {
+  function submitQuery(value: string, overrides: SearchOverrides = {}) {
     controller.current?.abort();
     const active = new AbortController();
     controller.current = active;
@@ -35,7 +41,11 @@ export function useShopperSearch(actions: SearchActions) {
         setSearchLoading: state.setSearchLoading,
         setSearchResult: state.setSearchResult,
       },
-      { filters, signal: active.signal },
+      {
+        filters: overrides.filters ?? filters,
+        locationId: overrides.locationId === undefined ? actions.locationId : overrides.locationId,
+        signal: active.signal,
+      },
     );
   }
 
@@ -82,6 +92,10 @@ function useSearchState() {
   };
 }
 
+function activeFilters(filters: ProductFilters): ProductFilters | undefined {
+  return Object.values(filters).some((value) => value !== undefined && value !== false) ? filters : undefined;
+}
+
 async function executeSearch(
   value: string,
   actions: SearchActions,
@@ -91,7 +105,7 @@ async function executeSearch(
     setSearchLoading: Dispatch<SetStateAction<boolean>>;
     setSearchResult: Dispatch<SetStateAction<SearchResult | null>>;
   },
-  options: { filters: ProductFilters; signal: AbortSignal },
+  options: { filters: ProductFilters; locationId: string | null; signal: AbortSignal },
 ) {
   const { model } = actions;
   if (!model) return;
@@ -114,8 +128,11 @@ async function executeSearch(
   setters.setSearchResult(null);
   actions.clearFeedback();
   try {
-    const filters = Object.values(options.filters).some((value) => value !== undefined) ? options.filters : undefined;
-    const result = await searchCatalog(model, normalized, options.signal, { useAi: true, filters });
+    const result = await searchOffers(model, normalized, options.signal, {
+      useAi: true,
+      filters: activeFilters(options.filters),
+      locationId: options.locationId,
+    });
     if (options.signal.aborted) return;
     setters.setSearchResult(result);
     actions.setServiceConnected(true);
