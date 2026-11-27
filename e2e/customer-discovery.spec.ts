@@ -3,7 +3,7 @@ import envelope from "../public/shopsense-ai-model.json";
 
 test("customer refines a search, finds its aisle, saves it, compares it and returns to browsing", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("checkbox")).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: envelope.messages.aiSearchLabel })).toHaveCount(0);
   await page.getByRole("searchbox").fill("shirt");
   await page.getByLabel("Collection", { exact: true }).selectOption("men");
   await page.getByLabel("Color", { exact: true }).selectOption("black");
