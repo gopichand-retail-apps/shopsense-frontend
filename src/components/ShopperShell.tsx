@@ -1,9 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ArrowRight, Bookmark, Menu, Moon, Server, Sparkles, Sun, X } from "lucide-react";
+import { ArrowRight, Bookmark, Menu, Moon, ShoppingBag, Sparkles, Sun, X } from "lucide-react";
 import { isMock } from "@/config";
-import { APP_VERSION } from "@/app-version";
 import { copy, type PublicModel, type ThemeMode } from "@/lib/model";
 
 export type WorkspaceView = "discover" | "saved";
@@ -14,6 +13,7 @@ interface ShopperShellProps {
   navigationOpen: boolean;
   theme: ThemeMode;
   serviceConnected: boolean;
+  modalOpen?: boolean;
   savedCount: number;
   onViewChange: (view: WorkspaceView) => void;
   onNavigationChange: (open: boolean) => void;
@@ -27,6 +27,7 @@ export function ShopperShell({
   navigationOpen,
   theme,
   serviceConnected,
+  modalOpen = false,
   savedCount,
   onViewChange,
   onNavigationChange,
@@ -38,7 +39,7 @@ export function ShopperShell({
   const pageTitle = activeView === "saved" ? copy(model, "savedTitle") : copy(model, "discover");
 
   return (
-    <div className="shop-shell" data-theme={theme} data-mode={isMock ? "mock" : "live"}>
+    <div className="shop-shell" inert={modalOpen} data-theme={theme} data-mode={isMock ? "mock" : "live"}>
       {navigationOpen && (
         <button
           className="mobile-scrim"
@@ -48,6 +49,14 @@ export function ShopperShell({
         />
       )}
       <aside className={navigationOpen ? "shop-sidebar is-open" : "shop-sidebar"}>
+        <button
+          className="sidebar-close-button"
+          type="button"
+          aria-label={copy(model, "closeNavigation")}
+          onClick={() => onNavigationChange(false)}
+        >
+          <X size={18} aria-hidden="true" />
+        </button>
         <a className="brand-lockup" href="#discover" onClick={() => onViewChange("discover")}>
           <span className="brand-symbol">
             <Sparkles size={18} aria-hidden="true" />
@@ -81,8 +90,7 @@ export function ShopperShell({
             <span className={serviceConnected ? "service-dot is-online" : "service-dot"} aria-hidden="true" />
             <span>{copy(model, serviceLabel)}</span>
           </div>
-          <p className="sidebar-footnote">{copy(model, "releaseVersion")} {APP_VERSION}</p>
-          <p className="sidebar-footnote">{copy(model, "catalogGrounding")}</p>
+          <p className="sidebar-footnote">{copy(model, "savedDeviceNotice")}</p>
         </div>
       </aside>
 
@@ -104,7 +112,7 @@ export function ShopperShell({
           </div>
           <div className="topbar-tools">
             <span className="service-label">
-              <Server size={13} aria-hidden="true" />
+              <ShoppingBag size={13} aria-hidden="true" />
               {copy(model, "catalogSource")}
             </span>
             <button
@@ -121,9 +129,7 @@ export function ShopperShell({
           {children}
           <footer className="shop-footer">
             <span>{copy(model, "footerNote")}</span>
-            <span>
-              <Server size={13} aria-hidden="true" /> {copy(model, "catalogGrounding")}
-            </span>
+            <span>{copy(model, "sampleCatalogNotice")}</span>
           </footer>
         </section>
       </main>

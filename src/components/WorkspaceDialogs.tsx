@@ -3,10 +3,11 @@
 import { GitCompareArrows, X } from "lucide-react";
 import { ComparisonDialog } from "@/components/ComparisonDialog";
 import { copy } from "@/lib/model";
-import type { CatalogProduct, PublicModel } from "@/lib/model";
+import type { CatalogProduct, PublicModel, ThemeMode } from "@/lib/model";
 
 interface WorkspaceDialogsProps {
   model: PublicModel;
+  theme?: ThemeMode;
   compareIds: string[];
   comparedProducts: CatalogProduct[];
   comparisonOpen: boolean;
@@ -17,6 +18,7 @@ interface WorkspaceDialogsProps {
 
 export function WorkspaceDialogs({
   model,
+  theme = "light",
   compareIds,
   comparedProducts,
   comparisonOpen,
@@ -25,9 +27,9 @@ export function WorkspaceDialogs({
   onClearComparison,
 }: WorkspaceDialogsProps) {
   return (
-    <>
+    <div className="workspace-overlays" data-theme={theme}>
       {compareIds.length > 0 && (
-        <div className="compare-dock">
+        <div className="compare-dock" inert={comparisonOpen}>
           <span>
             <GitCompareArrows size={16} aria-hidden="true" />
             {compareIds.length} / 2
@@ -46,6 +48,6 @@ export function WorkspaceDialogs({
         </div>
       )}
       {comparisonOpen && <ComparisonDialog model={model} products={comparedProducts} onClose={onCloseComparison} />}
-    </>
+    </div>
   );
 }

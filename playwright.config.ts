@@ -29,6 +29,9 @@ export default defineConfig({
       env: {
         PORT: apiPort,
         SHOPSENSE_DB_PATH: ":memory:",
+        SHOPSENSE_AI_PROVIDER: "local",
+        SHOPSENSE_AI_FALLBACK_PROVIDER: "none",
+        SHOPSENSE_STORAGE: "sqlite",
         SHOPSENSE_ALLOWED_ORIGINS: frontendUrl,
       },
     },

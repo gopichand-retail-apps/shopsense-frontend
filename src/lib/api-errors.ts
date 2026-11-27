@@ -5,6 +5,9 @@ type ApiErrorCode =
   | "RATE_LIMITED"
   | "INVALID_CATEGORY"
   | "INVALID_SEARCH"
+  | "INVALID_LOCATION"
+  | "INVALID_REQUEST"
+  | "OFFERS_NOT_SUPPORTED"
   | "INVALID_FEEDBACK"
   | "PRODUCT_NOT_FOUND"
   | "NOT_FOUND"
@@ -21,6 +24,9 @@ export const apiErrorCopyByCode = {
   RATE_LIMITED: "rateLimited",
   INVALID_CATEGORY: "invalidRequest",
   INVALID_SEARCH: "invalidSearch",
+  INVALID_LOCATION: "invalidLocation",
+  INVALID_REQUEST: "invalidRequest",
+  OFFERS_NOT_SUPPORTED: "offersUnavailable",
   INVALID_FEEDBACK: "invalidRequest",
   PRODUCT_NOT_FOUND: "notFound",
   NOT_FOUND: "notFound",

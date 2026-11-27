@@ -29,12 +29,16 @@ button {
 
 button:focus-visible,
 a:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
   outline: 2px solid #d56e50;
   outline-offset: 3px;
 }
 
-.shop-shell {
+:root,
+.shop-shell,
+.workspace-overlays {
   --page: #f3f5f0;
   --surface: #ffffff;
   --surface-soft: #f8f9f6;
@@ -47,6 +51,9 @@ input:focus-visible {
   --forest-soft: #e5eee7;
   --coral: #c76149;
   --gold: #c39a4e;
+}
+
+.shop-shell {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
@@ -55,7 +62,9 @@ input:focus-visible {
   font-family: "Roboto Variable", Roboto, sans-serif;
 }
 
-.shop-shell[data-theme="dark"] {
+.shop-shell[data-theme="dark"],
+.workspace-overlays[data-theme="dark"],
+.staff-page[data-theme="dark"] {
   --page: #151d1a;
   --surface: #1d2924;
   --surface-soft: #22312b;
@@ -295,6 +304,7 @@ input:focus-visible {
 }
 
 .mobile-menu-button,
+.sidebar-close-button,
 .mobile-scrim {
   display: none;
 }

@@ -1,37 +1,75 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from "react";
-import { getCatalog, getHealth, loadModel } from "@/lib/api";
-import type { CatalogProduct, PublicModel, ThemeMode } from "@/lib/model";
+import { useEffect, useMemo, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from "react";
+import type { LocationsStatus } from "@/components/LocationPicker";
+import { getHealth, getLocations, getOfferCatalog, getOffersByIds, loadModel } from "@/lib/api";
+import type { CatalogFreshness, CatalogProduct, PublicModel, StoreLocation, ThemeMode } from "@/lib/model";
 import { userFacingErrorCopy } from "@/lib/user-facing-error-copy";
+
+type Setter<T> = Dispatch<SetStateAction<T>>;
 
 export interface ShopperBootstrap {
   model: PublicModel | null;
   loadError: boolean;
   catalog: CatalogProduct[];
+  catalogTotal: number;
+  setCatalogTotal: Dispatch<SetStateAction<number>>;
+  referencedProducts: CatalogProduct[];
+  setReferencedProducts: Dispatch<SetStateAction<CatalogProduct[]>>;
   setCatalog: Dispatch<SetStateAction<CatalogProduct[]>>;
   catalogError: string | null;
   setCatalogError: Dispatch<SetStateAction<string | null>>;
   catalogLoading: boolean;
   setCatalogLoading: Dispatch<SetStateAction<boolean>>;
   serviceConnected: boolean;
+  aiAvailable: boolean;
+  setAiAvailable: Dispatch<SetStateAction<boolean>>;
   setServiceConnected: Dispatch<SetStateAction<boolean>>;
   offline: boolean;
   theme: ThemeMode;
   setTheme: Dispatch<SetStateAction<ThemeMode>>;
   savedIds: string[];
   setSavedIds: Dispatch<SetStateAction<string[]>>;
+  catalogFreshness: CatalogFreshness | null;
+  setCatalogFreshness: Setter<CatalogFreshness | null>;
+  unavailableSavedIds: string[];
+  setUnavailableSavedIds: Setter<string[]>;
+  locations: StoreLocation[];
+  locationsStatus: LocationsStatus;
+  locationId: string | null;
+  setLocationId: Setter<string | null>;
 }
+
+type InitialLoadSetters = Pick<
+  ShopperBootstrap,
+  | "setCatalog"
+  | "setCatalogTotal"
+  | "setCatalogError"
+  | "setCatalogFreshness"
+  | "setReferencedProducts"
+  | "setUnavailableSavedIds"
+  | "setServiceConnected"
+  | "setAiAvailable"
+  | "setSavedIds"
+> & {
+  setModel: Setter<PublicModel | null>;
+  setLoadError: Setter<boolean>;
+  setTheme: Setter<ThemeMode>;
+  setLocations: Setter<StoreLocation[]>;
+  setLocationsStatus: Setter<LocationsStatus>;
+  setLocationId: Setter<string | null>;
+};
+type LoadContext = InitialLoadSetters & { signal: AbortSignal; isMounted: () => boolean };
 
 export function useShopperBootstrap(): ShopperBootstrap {
   const [model, setModel] = useState<PublicModel | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
-  const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [catalogLoading, setCatalogLoading] = useState(false);
+  const { setters: catalogSetters, ...catalogState } = useCatalogState();
   const [serviceConnected, setServiceConnected] = useState(false);
+  const [aiAvailable, setAiAvailable] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [savedIds, setSavedIds] = useState<string[]>([]);
+  const { setters: locationSetters, ...locationState } = useLocationState();
 
   useEffect(
     () =>
@@ -40,11 +78,12 @@ export function useShopperBootstrap(): ShopperBootstrap {
         setLoadError,
         setTheme,
         setSavedIds,
-        setCatalog,
-        setCatalogError,
+        ...catalogSetters,
+        ...locationSetters,
         setServiceConnected,
+        setAiAvailable,
       }),
-    [],
+    [catalogSetters, locationSetters],
   );
 
   useEffect(() => {
@@ -57,31 +96,64 @@ export function useShopperBootstrap(): ShopperBootstrap {
   return {
     model,
     loadError,
-    catalog,
-    setCatalog,
-    catalogError,
-    setCatalogError,
-    catalogLoading,
-    setCatalogLoading,
+    ...catalogState,
     serviceConnected,
+    aiAvailable,
+    setAiAvailable,
     setServiceConnected,
     offline,
     theme,
     setTheme,
     savedIds,
     setSavedIds,
+    ...locationState,
+    setLocationId: locationSetters.setLocationId,
   };
 }
 
-function beginInitialLoad(setters: {
-  setModel: Dispatch<SetStateAction<PublicModel | null>>;
-  setLoadError: Dispatch<SetStateAction<boolean>>;
-  setTheme: Dispatch<SetStateAction<ThemeMode>>;
-  setSavedIds: Dispatch<SetStateAction<string[]>>;
-  setCatalog: Dispatch<SetStateAction<CatalogProduct[]>>;
-  setCatalogError: Dispatch<SetStateAction<string | null>>;
-  setServiceConnected: Dispatch<SetStateAction<boolean>>;
-}) {
+function useCatalogState() {
+  const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
+  const [catalogTotal, setCatalogTotal] = useState(0);
+  const [referencedProducts, setReferencedProducts] = useState<CatalogProduct[]>([]);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogFreshness, setCatalogFreshness] = useState<CatalogFreshness | null>(null);
+  const [unavailableSavedIds, setUnavailableSavedIds] = useState<string[]>([]);
+  const setters = useMemo(
+    () => ({
+      setCatalog,
+      setCatalogTotal,
+      setReferencedProducts,
+      setCatalogError,
+      setCatalogFreshness,
+      setUnavailableSavedIds,
+    }),
+    [],
+  );
+  return {
+    catalog,
+    catalogTotal,
+    referencedProducts,
+    catalogError,
+    catalogLoading,
+    setCatalogLoading,
+    catalogFreshness,
+    unavailableSavedIds,
+    ...setters,
+    setters,
+  };
+}
+
+// The selected store lives in memory only: no new browser-storage key.
+function useLocationState() {
+  const [locations, setLocations] = useState<StoreLocation[]>([]);
+  const [locationsStatus, setLocationsStatus] = useState<LocationsStatus>("loading");
+  const [locationId, setLocationId] = useState<string | null>(null);
+  const setters = useMemo(() => ({ setLocations, setLocationsStatus, setLocationId }), []);
+  return { locations, locationsStatus, locationId, setters };
+}
+
+function beginInitialLoad(setters: InitialLoadSetters) {
   const controller = new AbortController();
   let mounted = true;
   void initializeShopper({ ...setters, signal: controller.signal, isMounted: () => mounted });
@@ -91,17 +163,7 @@ function beginInitialLoad(setters: {
   };
 }
 
-async function initializeShopper(context: {
-  signal: AbortSignal;
-  isMounted: () => boolean;
-  setModel: Dispatch<SetStateAction<PublicModel | null>>;
-  setLoadError: Dispatch<SetStateAction<boolean>>;
-  setTheme: Dispatch<SetStateAction<ThemeMode>>;
-  setSavedIds: Dispatch<SetStateAction<string[]>>;
-  setCatalog: Dispatch<SetStateAction<CatalogProduct[]>>;
-  setCatalogError: Dispatch<SetStateAction<string | null>>;
-  setServiceConnected: Dispatch<SetStateAction<boolean>>;
-}) {
+async function initializeShopper(context: LoadContext) {
   try {
     const model = await loadModel(context.signal);
     if (!context.isMounted()) return;
@@ -109,27 +171,45 @@ async function initializeShopper(context: {
     context.setTheme(readTheme(model));
     context.setSavedIds(readSavedIds(model.app.savedStorageKey));
     updateDocumentMetadata(model);
-    await loadInitialCatalog(model, context);
+    const locationId = await loadLocations(model, context);
+    await loadInitialCatalog(model, locationId, context);
+    const saved = await getOffersByIds(model, readSavedIds(model.app.savedStorageKey), locationId, context.signal);
+    if (!context.isMounted()) return;
+    context.setReferencedProducts(saved.items);
+    context.setUnavailableSavedIds(saved.unavailableIds);
   } catch {
     if (context.isMounted()) context.setLoadError(true);
   }
 }
 
-async function loadInitialCatalog(
-  model: PublicModel,
-  context: Pick<ShopperBootstrap, "setCatalog" | "setCatalogError" | "setServiceConnected"> & {
-    signal: AbortSignal;
-    isMounted: () => boolean;
-  },
-) {
+// Stores are optional for browsing: a failure leaves "any store" and an explanation, not a broken page.
+async function loadLocations(model: PublicModel, context: LoadContext): Promise<string | null> {
   try {
-    const [health, products] = await Promise.all([
+    const locations = await getLocations(model, context.signal);
+    if (!context.isMounted()) return null;
+    const first = locations[0]?.id ?? null;
+    context.setLocations(locations);
+    context.setLocationId(first);
+    context.setLocationsStatus("ready");
+    return first;
+  } catch {
+    if (context.isMounted()) context.setLocationsStatus("error");
+    return null;
+  }
+}
+
+async function loadInitialCatalog(model: PublicModel, locationId: string | null, context: LoadContext) {
+  try {
+    const [health, page] = await Promise.all([
       getHealth(model, context.signal),
-      getCatalog(model, undefined, context.signal),
+      getOfferCatalog(model, { locationId }, context.signal),
     ]);
     if (!context.isMounted()) return;
     context.setServiceConnected(health.status === "ok");
-    context.setCatalog(products);
+    context.setAiAvailable(health.ai?.available === true);
+    context.setCatalog(page.items);
+    context.setCatalogTotal(page.total);
+    context.setCatalogFreshness(page.catalog);
   } catch (error) {
     if (!context.isMounted()) return;
     context.setServiceConnected(false);

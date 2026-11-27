@@ -101,7 +101,7 @@ describe("ShopperApp product interactions", () => {
     let catalogRequests = 0;
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = pathnameOf(input);
-      if (path === "/api/v1/catalog" && catalogRequests++ === 0) {
+      if (path === "/api/v2/catalog" && catalogRequests++ === 0) {
         return jsonResponse({ error: { code: "INTERNAL_ERROR" } }, 500);
       }
       if (path === "/api/v1/feedback") {

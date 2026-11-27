@@ -1,7 +1,9 @@
 "use client";
 
 import { ArrowLeftRight, X } from "lucide-react";
-import { copy, formatPrice, nestedCopy } from "@/lib/model";
+import { useEffect, useRef } from "react";
+import { AvailabilityLine } from "@/components/OfferNotices";
+import { copy, formatDateTime, formatPrice, nestedCopy } from "@/lib/model";
 import type { CatalogProduct, PublicModel } from "@/lib/model";
 
 interface ComparisonDialogProps {
@@ -11,6 +13,17 @@ interface ComparisonDialogProps {
 }
 
 export function ComparisonDialog({ model, products, onClose }: ComparisonDialogProps) {
+  const closeButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const trigger = document.activeElement;
+    closeButton.current?.focus();
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = overflow;
+      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+    };
+  }, []);
   return (
     <div
       className="dialog-backdrop"
@@ -25,6 +38,10 @@ export function ComparisonDialog({ model, products, onClose }: ComparisonDialogP
         aria-labelledby="compare-heading"
         onKeyDown={(event) => {
           if (event.key === "Escape") onClose();
+          if (event.key === "Tab") {
+            event.preventDefault();
+            closeButton.current?.focus();
+          }
         }}
       >
         <div className="dialog-heading">
@@ -35,7 +52,13 @@ export function ComparisonDialog({ model, products, onClose }: ComparisonDialogP
             </span>
             <h2 id="compare-heading">{copy(model, "compareTitle")}</h2>
           </div>
-          <button type="button" className="icon-button" aria-label={copy(model, "compareClose")} onClick={onClose}>
+          <button
+            ref={closeButton}
+            type="button"
+            className="icon-button"
+            aria-label={copy(model, "compareClose")}
+            onClick={onClose}
+          >
             <X size={18} aria-hidden="true" />
           </button>
         </div>
@@ -44,7 +67,10 @@ export function ComparisonDialog({ model, products, onClose }: ComparisonDialogP
             <article className="comparison-product" key={product.id}>
               <span className="comparison-category">{nestedCopy(model, "categories", product.category)}</span>
               <h3>{product.name}</h3>
-              <strong className="comparison-price">{formatPrice(model, product.priceCents)}</strong>
+              <strong className="comparison-price">
+                {formatPrice(model, product.priceCents, product.offer?.currency)}
+              </strong>
+              <OfferFacts model={model} product={product} />
               <p>{product.description}</p>
               <ul>
                 {product.attributes.map((attribute) => (
@@ -57,5 +83,30 @@ export function ComparisonDialog({ model, products, onClose }: ComparisonDialogP
         </div>
       </section>
     </div>
+  );
+}
+
+// Aligned stock, SKU and price-update rows; only facts the API returned are shown.
+function OfferFacts({ model, product }: { model: PublicModel; product: CatalogProduct }) {
+  if (!product.offer && !product.availability) return null;
+  return (
+    <dl className="comparison-offer">
+      {product.availability ? (
+        <>
+          <dt>{copy(model, "compareAvailability")}</dt>
+          <dd>
+            <AvailabilityLine model={model} availability={product.availability} />
+          </dd>
+        </>
+      ) : null}
+      {product.offer ? (
+        <>
+          <dt>{copy(model, "compareSku")}</dt>
+          <dd>{product.offer.sku}</dd>
+          <dt>{copy(model, "compareUpdated")}</dt>
+          <dd>{formatDateTime(model, product.offer.updatedAt)}</dd>
+        </>
+      ) : null}
+    </dl>
   );
 }

@@ -1,8 +1,17 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { copyWith } from "@/lib/model";
 import { ShopperApp } from "./ShopperApp";
-import { envelope, jsonResponse, model, pathnameOf, products, responseForPath } from "../../tests/shopper-fixtures";
+import {
+  envelope,
+  jsonResponse,
+  model,
+  offerPage,
+  pathnameOf,
+  products,
+  responseForPath,
+} from "../../tests/shopper-fixtures";
 
 function installDefaultFetch() {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => responseForPath(pathnameOf(input), init));
@@ -63,7 +72,7 @@ describe("ShopperApp boot and discovery", () => {
     await user.type(searchbox, "x");
     await user.click(screen.getByRole("button", { name: model.copy.searchAction }));
     expect(screen.getByRole("alert")).toHaveTextContent(model.copy.searchTooShort);
-    expect(fetchMock.mock.calls.some(([input]) => pathnameOf(input) === "/api/v1/search")).toBe(false);
+    expect(fetchMock.mock.calls.some(([input]) => pathnameOf(input) === "/api/v2/search")).toBe(false);
 
     fireEvent.change(searchbox, {
       target: { value: "x".repeat(model.search.maximumQueryCharacters + 1) },
@@ -99,7 +108,7 @@ describe("ShopperApp boot and discovery", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) =>
-        pathnameOf(input) === "/api/v1/catalog" ? jsonResponse({ data: [] }) : responseForPath(pathnameOf(input)),
+        pathnameOf(input) === "/api/v2/catalog" ? jsonResponse(offerPage([])) : responseForPath(pathnameOf(input)),
       ),
     );
     vi.stubGlobal("scrollTo", vi.fn());
@@ -115,7 +124,7 @@ describe("ShopperApp boot and discovery", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-        if (pathnameOf(input) === "/api/v1/search") {
+        if (pathnameOf(input) === "/api/v2/search") {
           return jsonResponse({
             data: {
               intentCategory: null,
@@ -149,7 +158,7 @@ describe("ShopperApp boot and discovery", () => {
     await user.click(screen.getByRole("button", { name: /A light pack for weekend trails/ }));
 
     expect(await screen.findByRole("heading", { name: products[0].name, level: 2 })).toBeVisible();
-    expect(fetchMock.mock.calls.some(([input]) => pathnameOf(input) === "/api/v1/search")).toBe(true);
+    expect(fetchMock.mock.calls.some(([input]) => pathnameOf(input) === "/api/v2/search")).toBe(true);
   });
 
   it("uses the model search error copy when the request cannot reach the API", async () => {
@@ -157,7 +166,7 @@ describe("ShopperApp boot and discovery", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
-        pathnameOf(input) === "/api/v1/search"
+        pathnameOf(input) === "/api/v2/search"
           ? Promise.reject(new TypeError("private transport detail"))
           : Promise.resolve(responseForPath(pathnameOf(input), init)),
       ),
@@ -204,8 +213,10 @@ describe("ShopperApp boot and discovery", () => {
     await user.click(screen.getByRole("button", { name: model.copy.searchAction }));
 
     expect(await screen.findByRole("heading", { name: products[0].name, level: 2 })).toBeVisible();
-    expect(screen.getByText(products[0].attributes[0])).toBeVisible();
-    expect(fetchMock.mock.calls.some(([input]) => pathnameOf(input) === "/api/v1/search")).toBe(true);
+    expect(
+      screen.getByRole("button", { name: copyWith(model, "showStoredAttribute", { text: products[0].attributes[0] }) }),
+    ).toBeVisible();
+    expect(fetchMock.mock.calls.some(([input]) => pathnameOf(input) === "/api/v2/search")).toBe(true);
   });
 
   it("keeps the catalog recoverable when offline and reconnects", async () => {
@@ -256,7 +267,7 @@ describe("ShopperApp boot and discovery", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-        if (pathnameOf(input) === "/api/v1/search") {
+        if (pathnameOf(input) === "/api/v2/search") {
           return new Promise<Response>((resolve) => {
             resolveSearch = resolve;
           });
@@ -272,7 +283,7 @@ describe("ShopperApp boot and discovery", () => {
     expect(screen.getByRole("status")).toHaveTextContent(model.copy.searching);
     if (!resolveSearch) throw new Error("The search request should be pending.");
     resolveSearch(
-      responseForPath("/api/v1/search", {
+      responseForPath("/api/v2/search", {
         body: JSON.stringify({ query: "a light daypack" }),
       }),
     );
