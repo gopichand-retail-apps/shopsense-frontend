@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: gopichand-retail-apps/shopsense-backend
-          ref: 93469e1ae592b41bfeb74f10fe71206362e8fe45
+          ref: dc18ff8dd22e5d40df2294a65857c92a4aceb1b4
           path: shopsense-backend
           persist-credentials: false
       - uses: actions/setup-node@v4
